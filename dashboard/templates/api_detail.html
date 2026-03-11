@@ -1,179 +1,757 @@
 {% extends "base.html" %}
-{% block title %}API 评估详情 — AI-Ready Eval{% endblock %}
-{% block page_title %}API AI-Readiness 评估{% endblock %}
+{% block title %}API AI-Ready 测试 — AI-Ready Eval{% endblock %}
+{% block page_title %}API AI-Ready 测试{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+<style>
+  .mode-tabs { display:flex; gap:0; margin-bottom:20px; border-bottom:1px solid var(--border); }
+  .mode-tab {
+    padding:9px 18px; font-size:13px; cursor:pointer; color:var(--text-3);
+    border:none; background:none; border-bottom:2px solid transparent; margin-bottom:-1px;
+    transition:all .15s; display:flex; align-items:center; gap:6px;
+  }
+  .mode-tab.active { color:var(--text); border-bottom-color:var(--accent); }
+  .mode-tab:hover:not(.active) { color:var(--text-2); }
+  .mode-tab.soon { opacity:.45; cursor:default; }
+  .drop-zone {
+    border:2px dashed var(--border); border-radius:10px;
+    padding:36px; text-align:center; cursor:pointer; transition:all .15s;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color:var(--accent); background:rgba(99,102,241,.04);
+  }
+  .layer-hdr {
+    display:flex; align-items:center; gap:10px; padding:14px 18px;
+    background:var(--bg-raised); border:1px solid var(--border);
+    border-radius:10px; margin-bottom:14px;
+  }
+  .lock-tag {
+    margin-left:auto; font-size:11px; padding:2px 8px; border-radius:4px;
+    background:rgba(100,116,139,.15); color:var(--text-3); font-family:var(--mono);
+  }
+  .warn-banner {
+    background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.2);
+    color:var(--partial); border-radius:8px; padding:10px 14px;
+    font-size:13px; margin-bottom:16px; display:flex; align-items:flex-start; gap:8px;
+  }
+  .coming-card { padding:28px; text-align:center; border-style:dashed; margin-bottom:20px; }
+</style>
+{% endblock %}
 
 {% block content %}
-{% if is_demo %}
-<div class="demo-banner">
-  <i class="bi bi-info-circle-fill"></i>
-  演示数据 — TaskMaster API
-  <a href="/run-eval" style="color:#fcd34d;font-weight:600;margin-left:6px">上传真实 spec →</a>
-</div>
-{% endif %}
+<div style="max-width:900px">
 
-{% if inline_mode is defined and inline_mode %}
-<div style="background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:10px 16px;font-size:13px;color:#86efac;margin-bottom:16px;display:flex;align-items:center;gap:8px">
-  <i class="bi bi-check-circle-fill"></i>在线静态分析完成 — 结果如下
-</div>
-{% endif %}
-
-<!-- Header row -->
-<div class="g12 mb-4">
-  <div class="card" style="text-align:center">
-    <div class="card-title">AI-Readiness Score</div>
-    <div class="score-big" style="color:{{ overall_grade.color }}">{{ "%.0f"|format(report.overall_score * 100) }}<span style="font-size:20px;color:var(--text-3)">分</span></div>
-    <div style="margin-top:10px">
-      <span class="grade grade-{{ overall_grade.grade }}">{{ overall_grade.grade }} · {{ overall_grade.label }}</span>
+<!-- ═══════════════════════════ UPLOAD PANEL ═══════════════════════════ -->
+<div id="upload-panel">
+  <!-- Spec loading -->
+  <div class="card mb-4">
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px">载入 API 描述</div>
+    <div style="font-size:13px;color:var(--text-2);margin-bottom:20px">
+      上传 OpenAPI spec 或粘贴内容，即刻进行 8 维度静态 AI-Readiness 分析。
     </div>
-    <div style="font-size:12px;color:var(--text-3);margin-top:8px">加权综合 8 维度</div>
-    <canvas id="radarChart" height="160" style="margin-top:16px"></canvas>
-  </div>
-  <div class="card">
-    {% set spec_info = report.get('spec_info', {}) %}
-    <div class="card-title">规范信息</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
-      <div>
-        <div style="font-size:11px;color:var(--text-3)">接口名称</div>
-        <div style="font-size:14px;font-weight:600;margin-top:3px">{{ spec_info.get('title', '—') }}</div>
-      </div>
-      <div>
-        <div style="font-size:11px;color:var(--text-3)">版本</div>
-        <div class="mono" style="font-size:14px;font-weight:600;margin-top:3px">{{ spec_info.get('version', '—') }}</div>
-      </div>
-      <div>
-        <div style="font-size:11px;color:var(--text-3)">格式</div>
-        <div style="font-size:14px;font-weight:600;margin-top:3px">{{ spec_info.get('format', 'OpenAPI') }}</div>
-      </div>
-      <div>
-        <div style="font-size:11px;color:var(--text-3)">Endpoints</div>
-        <div class="mono" style="font-size:14px;font-weight:600;margin-top:3px">{{ spec_info.get('endpoint_count', '—') }}</div>
+
+    <div class="mode-tabs">
+      <button class="mode-tab active" data-mode="file" onclick="switchMode('file')">
+        <i class="bi bi-file-earmark-code"></i> 上传 Spec
+      </button>
+      <button class="mode-tab" data-mode="paste" onclick="switchMode('paste')">
+        <i class="bi bi-clipboard"></i> 粘贴内容
+      </button>
+      <button class="mode-tab soon" title="即将支持">
+        <i class="bi bi-link-45deg"></i> MCP 地址 <span style="font-size:10px;margin-left:4px">即将</span>
+      </button>
+      <button class="mode-tab soon" title="即将支持">
+        <i class="bi bi-globe"></i> 文档 URL <span style="font-size:10px;margin-left:4px">即将</span>
+      </button>
+    </div>
+
+    <!-- File upload -->
+    <div id="panel-file">
+      <div class="drop-zone" id="file-drop" onclick="document.getElementById('spec-file').click()">
+        <i class="bi bi-file-earmark-code" style="font-size:40px;color:var(--text-3);display:block;margin-bottom:12px"></i>
+        <div style="font-size:14px;color:var(--text-2);margin-bottom:6px">点击或拖拽上传 OpenAPI 规范文件</div>
+        <div style="font-size:12px;color:var(--text-3)">.yaml / .yml / .json &nbsp;·&nbsp; OpenAPI 3.x / Swagger 2.0</div>
+        <input type="file" id="spec-file" accept=".yaml,.yml,.json" style="display:none">
       </div>
     </div>
-    <hr class="dim-sep">
-    <div class="card-title" style="margin-bottom:8px">维度得分</div>
-    {% for dim in dimensions %}
-    <div class="flex-between mb-2">
-      <span style="font-size:13px;color:var(--text-2)">{{ dim.name_zh if dim.name_zh else dim.name }}</span>
-      <div style="display:flex;align-items:center;gap:8px">
-        <div class="bar-sm"><div class="bar-fill" style="width:{{ (dim.score * 100)|int }}%;background:{% if dim.score >= 0.85 %}var(--pass){% elif dim.score >= 0.6 %}var(--partial){% else %}var(--fail){% endif %}"></div></div>
-        <span class="mono" style="font-size:12px;min-width:28px;text-align:right">{{ "%.0f"|format(dim.score * 100) }}</span>
-      </div>
+
+    <!-- Paste -->
+    <div id="panel-paste" style="display:none">
+      <textarea id="spec-paste" rows="14" placeholder="openapi: &#39;3.0.0&#39;
+info:
+  title: My API
+  version: 1.0.0
+paths:
+  /users:
+    get:
+      summary: ..." style="
+        width:100%; background:var(--bg-raised); border:1px solid var(--border);
+        color:var(--text); border-radius:8px; padding:12px;
+        font-family:var(--mono); font-size:12px; resize:vertical; outline:none; margin-bottom:12px;
+      "></textarea>
     </div>
-    {% endfor %}
-  </div>
-</div>
 
-<!-- Dimension details -->
-<div style="font-size:15px;font-weight:600;margin-bottom:12px">
-  维度详情
-  <span style="font-size:12px;color:var(--text-3);font-weight:400;margin-left:6px">点击展开检查项</span>
-</div>
+    <!-- File summary -->
+    <div id="file-summary" style="
+      display:none; margin-top:16px; padding:10px 14px;
+      background:var(--bg-raised); border:1px solid var(--border-soft);
+      border-radius:8px; font-size:13px; color:var(--text-2);
+    "></div>
 
-{% set layer_map = {
-  '语义描述完整性': '静态分析',
-  '参数类型精确性': '静态分析',
-  '响应体结构完整性': '静态分析',
-  '错误响应质量': '静态分析',
-  'Schema 丰富度': '静态分析',
-  '幂等性与副作用': '静态分析',
-  '运行时健壮性': '静态+动态',
-  'Auth & 安全规范': '静态分析',
-  '可发现性': '静态分析'
-} %}
+    <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
+      <button class="btn btn-primary" id="start-btn" onclick="startAnalysis()" disabled>
+        <i class="bi bi-play-fill"></i> 开始静态分析
+      </button>
+      <button class="btn btn-outline btn-sm" onclick="loadDemo()">
+        <i class="bi bi-file-earmark-code"></i> 加载示例
+      </button>
+      <span style="font-size:12px;color:var(--text-3);margin-left:auto">
+        <i class="bi bi-lock-fill" style="color:var(--pass)"></i> 规范内容不会上传到服务器
+      </span>
+    </div>
+  </div>
 
-{% for dim in dimensions %}
-{% set dim_name = dim.name_zh if dim.name_zh else dim.name %}
-{% set layer = layer_map.get(dim_name, '静态分析') %}
-{% set score_pct = (dim.score * 100)|int %}
-{% set bar_color = 'var(--pass)' if dim.score >= 0.85 else ('var(--partial)' if dim.score >= 0.6 else 'var(--fail)') %}
-<div class="dim-row">
-  <div class="dim-row-header">
-    <span class="layer-badge">{{ layer }}</span>
-    <span class="dim-name" style="margin-left:10px">{{ dim_name }}</span>
-    <button data-weight-toggle="weight-{{ loop.index }}" class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px;margin-right:8px" title="查看权重明细">权重</button>
-    <span class="dim-score" style="color:{{ bar_color }}">{{ score_pct }}</span>
-    <div class="bar-sm"><div class="bar-fill" style="width:{{ score_pct }}%;background:{{ bar_color }}"></div></div>
-    <i class="bi bi-chevron-down toggle-icon" style="margin-left:8px"></i>
-  </div>
-  <div class="weight-detail" id="weight-{{ loop.index }}">
-    权重: {{ dim.weight if dim.weight is defined else '—' }}/{{ report.get('total_weight', 66) }} ·
-    占比: {{ ((dim.weight / report.get('total_weight', 66)) * 100)|int if dim.weight is defined else '—' }}% ·
-    检测层: {{ layer }} ·
-    依据: AI-Ready 评估框架 v2（静态分析维度）
-  </div>
-  <div class="dim-body">
-    {% if dim.get('description') %}
-    <div style="font-size:13px;color:var(--text-2);margin-bottom:12px">{{ dim.description }}</div>
-    {% endif %}
-    {% if dim.get('checks') %}
-    <div class="card-title" style="margin-bottom:6px">检查项</div>
-    {% for chk in dim.checks %}
-    <div class="chk">
-      {% if chk.result == 'pass' %}<i class="bi bi-check-circle-fill chk-icon chk-pass"></i>
-      {% elif chk.result == 'partial' %}<i class="bi bi-dash-circle-fill chk-icon chk-partial"></i>
-      {% else %}<i class="bi bi-x-circle-fill chk-icon chk-fail"></i>{% endif %}
+  <!-- API Connection (optional) -->
+  <div class="card mb-4">
+    <div class="flex-between" style="margin-bottom:12px">
       <div>
-        <div style="font-size:13px;font-weight:500">{{ chk.name }}</div>
-        {% if chk.get('detail') %}<div style="font-size:12px;color:var(--text-3);margin-top:2px">{{ chk.detail }}</div>{% endif %}
+        <div style="font-size:14px;font-weight:600;margin-bottom:2px">API 连接信息（可选）</div>
+        <div style="font-size:12px;color:var(--text-3)">用于层次二动态探测和层次三 Agent 实战测试，静态分析不需要</div>
       </div>
-      <div style="margin-left:auto;flex-shrink:0">
-        {% if chk.result == 'pass' %}<span style="font-size:11px;background:rgba(34,197,94,.15);color:var(--pass);padding:2px 7px;border-radius:4px">通过</span>
-        {% elif chk.result == 'partial' %}<span style="font-size:11px;background:rgba(245,158,11,.15);color:var(--partial);padding:2px 7px;border-radius:4px">部分</span>
-        {% else %}<span style="font-size:11px;background:rgba(239,68,68,.15);color:var(--fail);padding:2px 7px;border-radius:4px">不通过</span>{% endif %}
+      <span class="lock-tag">层次二 / 三</span>
+    </div>
+    <div class="g3">
+      <div>
+        <label style="font-size:12px;color:var(--text-3);display:block;margin-bottom:5px">基础地址</label>
+        <input type="url" id="api-base-url" placeholder="https://api.example.com"
+          style="width:100%;background:var(--bg-raised);border:1px solid var(--border);
+          color:var(--text);border-radius:6px;padding:8px 12px;font-size:13px;outline:none;">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-3);display:block;margin-bottom:5px">认证方式</label>
+        <select id="auth-type" style="width:100%;background:var(--bg-raised);border:1px solid var(--border);
+          color:var(--text);border-radius:6px;padding:8px 12px;font-size:13px;outline:none;">
+          <option value="none">无认证</option>
+          <option value="api_key">API Key（Header）</option>
+          <option value="bearer">Bearer Token</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-3);display:block;margin-bottom:5px">认证值</label>
+        <input type="password" id="auth-value" placeholder="sk-..."
+          style="width:100%;background:var(--bg-raised);border:1px solid var(--border);
+          color:var(--text);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:13px;outline:none;">
       </div>
     </div>
-    {% endfor %}
-    {% endif %}
-    {% if dim.get('issues') %}
-    <div class="card-title" style="margin-top:12px;margin-bottom:6px">发现的问题</div>
-    {% for issue in dim.issues %}
-    <div class="issue-pill"><i class="bi bi-exclamation-triangle-fill" style="margin-top:1px;flex-shrink:0"></i>{{ issue }}</div>
-    {% endfor %}
-    {% endif %}
-    {% if dim.get('recommendations') %}
-    <div class="card-title" style="margin-top:12px;margin-bottom:6px">修复建议</div>
-    {% for rec in dim.recommendations %}
-    <div class="rec-pill"><i class="bi bi-lightbulb-fill" style="margin-top:1px;flex-shrink:0"></i>{{ rec }}</div>
-    {% endfor %}
-    {% endif %}
+  </div>
+
+  <!-- Feature intro -->
+  <div class="g3 mb-4">
+    <div class="card" style="text-align:center;padding:20px">
+      <i class="bi bi-layers" style="font-size:28px;color:var(--pass);display:block;margin-bottom:10px"></i>
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px">P0：Spec 静态分析</div>
+      <div style="font-size:12px;color:var(--text-3)">8 维度文档质量检查，无需 LLM Key，秒级完成</div>
+    </div>
+    <div class="card" style="text-align:center;padding:20px">
+      <i class="bi bi-activity" style="font-size:28px;color:var(--partial);display:block;margin-bottom:10px"></i>
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px">P1：动态行为探测</div>
+      <div style="font-size:12px;color:var(--text-3)">一致性 / 体量 / 错误 / 限流，需要 API 地址</div>
+    </div>
+    <div class="card" style="text-align:center;padding:20px">
+      <i class="bi bi-robot" style="font-size:28px;color:var(--accent-h);display:block;margin-bottom:10px"></i>
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px">P1：Agent 实战测试</div>
+      <div style="font-size:12px;color:var(--text-3)">真实 LLM 执行业务任务，需要 API + LLM Key</div>
+    </div>
   </div>
 </div>
-{% endfor %}
+
+<!-- ═══════════════════════════ RESULTS PANEL ═══════════════════════════ -->
+<div id="results-panel" style="display:none">
+  <div class="flex-between mb-4">
+    <div style="font-size:18px;font-weight:700">API AI-Readiness 分析结果</div>
+    <button class="btn btn-outline btn-sm" onclick="resetAnalysis()">
+      <i class="bi bi-arrow-left"></i> 重新分析
+    </button>
+  </div>
+
+  <!-- Static analysis warning -->
+  <div class="warn-banner">
+    <i class="bi bi-exclamation-triangle-fill" style="flex-shrink:0;margin-top:1px"></i>
+    <span>
+      当前为 <strong>静态分析模式</strong>——基于接口描述文档的文本分析，不代表 API 实际行为。
+      如需验证 API 行为、运行 Agent 实战测试，请在上方填写 API 地址和认证信息。
+    </span>
+  </div>
+
+  <!-- Score overview -->
+  <div class="g12 mb-4">
+    <div class="card" style="display:flex;align-items:center;gap:24px;justify-content:center;flex-wrap:wrap">
+      <div style="text-align:center">
+        <div id="res-score" class="score-big" style="color:var(--accent-h)">—</div>
+        <div class="score-label">综合 AI-Readiness 分</div>
+        <div style="margin-top:10px">
+          <span id="res-grade" class="grade">—</span>
+          <span id="res-grade-name" style="margin-left:8px;font-size:13px;color:var(--text-2)"></span>
+        </div>
+      </div>
+      <canvas id="res-radar" width="180" height="180"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">维度概览</div>
+      <div id="dim-summary"></div>
+    </div>
+  </div>
+
+  <!-- Dimension details -->
+  <div id="dim-details" class="mb-4"></div>
+
+  <!-- Layer 2 -->
+  <div class="layer-hdr">
+    <span class="layer-badge" style="background:rgba(245,158,11,.12);color:var(--partial);border-color:rgba(245,158,11,.25)">
+      需要 API 地址
+    </span>
+    <span style="font-weight:600;font-size:14px">层次二：动态行为探测</span>
+    <span style="font-size:12px;color:var(--text-2)">验证 API 实际行为与 spec 描述是否一致</span>
+    <span class="lock-tag">🔒 P1 功能</span>
+  </div>
+
+  <div class="card coming-card mb-4">
+    <i class="bi bi-activity" style="font-size:32px;color:var(--text-3);display:block;margin-bottom:12px"></i>
+    <div style="font-size:14px;font-weight:600;margin-bottom:8px">动态行为探测（6 项）</div>
+    <div style="font-size:13px;color:var(--text-2);max-width:560px;margin:0 auto 20px;line-height:1.7">
+      自动对 spec 中每个端点发真实 HTTP 请求，验证：
+      Spec-实现一致性 · 响应体量实测 · 分页验证 · 错误语义实测 · 限流行为 · 幂等性
+    </div>
+    <button class="btn btn-primary" disabled style="opacity:.45;cursor:not-allowed">
+      <i class="bi bi-activity"></i> 运行动态探测（即将上线）
+    </button>
+  </div>
+
+  <!-- Layer 3 -->
+  <div class="layer-hdr">
+    <span class="layer-badge" style="background:rgba(99,102,241,.1);color:var(--accent-h);border-color:rgba(99,102,241,.25)">
+      需要 API + LLM
+    </span>
+    <span style="font-weight:600;font-size:14px">层次三：Agent 实战测试</span>
+    <span style="font-size:12px;color:var(--text-2)">真实 LLM 执行业务任务，逐步追踪调用链，诊断失败根因</span>
+    <span class="lock-tag">🔒 P1 核心功能</span>
+  </div>
+
+  <div class="card coming-card">
+    <i class="bi bi-robot" style="font-size:32px;color:var(--text-3);display:block;margin-bottom:12px"></i>
+    <div style="font-size:14px;font-weight:600;margin-bottom:8px">Agent 实战测试</div>
+    <div style="font-size:13px;color:var(--text-2);max-width:560px;margin:0 auto 20px;line-height:1.7">
+      把 API spec 转为 function calling 定义，给真实 LLM 一组业务任务（自动生成或用户指定），
+      记录 agent 完整调用链，将每个失败步骤映射到 8 维度根因，生成可执行的改进路径。
+    </div>
+    <div class="g2" style="max-width:480px;margin:0 auto 20px;text-align:left">
+      <div>
+        <label style="font-size:12px;color:var(--text-3);display:block;margin-bottom:5px">LLM API Key</label>
+        <input type="password" placeholder="sk-..." style="
+          width:100%;background:var(--bg-raised);border:1px solid var(--border);
+          color:var(--text);border-radius:6px;padding:8px 12px;
+          font-family:var(--mono);font-size:13px;outline:none;">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-3);display:block;margin-bottom:5px">模型</label>
+        <select style="width:100%;background:var(--bg-raised);border:1px solid var(--border);
+          color:var(--text);border-radius:6px;padding:8px 12px;font-size:13px;outline:none;">
+          <option>Claude 3.5 Sonnet（推荐）</option>
+          <option>Claude 3.5 Haiku</option>
+          <option>GPT-4o</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" disabled style="opacity:.45;cursor:not-allowed">
+      <i class="bi bi-robot"></i> 运行 Agent 实战测试（即将上线）
+    </button>
+  </div>
+</div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-const dimLabels = {{ dimensions|map(attribute='name_zh')|list|tojson }};
-const dimScores = {{ dimensions|map(attribute='score')|list|tojson }};
-const dimScoresPct = dimScores.map(s => Math.round(s * 100));
+// ── State ──
+var specText = '';
+var radarChart = null;
 
-new Chart(document.getElementById('radarChart'), {
-  type: 'radar',
-  data: {
-    labels: dimLabels,
-    datasets: [{
-      label: 'AI-Readiness',
-      data: dimScoresPct,
-      backgroundColor: 'rgba(99,102,241,.18)',
-      borderColor: '#6366f1',
-      pointBackgroundColor: '#6366f1',
-      pointRadius: 4,
-      borderWidth: 2,
-    }]
-  },
-  options: {
-    responsive: true,
-    plugins: { legend: { display: false } },
-    scales: {
-      r: {
-        min: 0, max: 100,
-        ticks: { display: false, stepSize: 25 },
-        grid: { color: 'rgba(42,42,62,.8)' },
-        angleLines: { color: 'rgba(42,42,62,.8)' },
-        pointLabels: { color: '#94a3b8', font: { size: 10, family: 'Noto Sans SC' } },
-      }
-    },
-  }
+// ── Mode switching ──
+function switchMode(mode) {
+  document.querySelectorAll('.mode-tab:not(.soon)').forEach(t =>
+    t.classList.toggle('active', t.dataset.mode === mode));
+  ['file','paste'].forEach(m =>
+    document.getElementById('panel-' + m).style.display = m === mode ? '' : 'none');
+}
+
+// ── File handling ──
+const fileInput = document.getElementById('spec-file');
+const dropZone  = document.getElementById('file-drop');
+
+fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
 });
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    specText = ev.target.result;
+    document.getElementById('file-summary').style.display = '';
+    document.getElementById('file-summary').innerHTML =
+      '<i class="bi bi-check2-circle" style="color:var(--pass);margin-right:6px"></i>'
+      + '已载入：<strong>' + file.name + '</strong> (' + (file.size / 1024).toFixed(1) + ' KB)';
+    document.getElementById('start-btn').disabled = false;
+  };
+  reader.readAsText(file);
+}
+
+function loadDemo() {
+  switchMode('paste');
+  document.getElementById('spec-paste').value = DEMO_SPEC;
+  specText = DEMO_SPEC;
+  document.getElementById('start-btn').disabled = false;
+}
+
+// ── Demo spec ──
+const DEMO_SPEC = `openapi: "3.0.0"
+info:
+  title: TaskMaster API
+  version: 1.2.0
+  description: A production-grade task management API for AI agent integration
+paths:
+  /tasks:
+    get:
+      summary: List all tasks
+      description: Returns a paginated list of tasks filtered by status and assignee. Supports cursor-based pagination for large datasets.
+      parameters:
+        - name: status
+          in: query
+          description: Filter by task status (open, in_progress, done, cancelled)
+          schema:
+            type: string
+            enum: [open, in_progress, done, cancelled]
+        - name: limit
+          in: query
+          description: Number of results per page (1-100)
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Paginated list of tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Task' } }
+                  total: { type: integer }
+                  next_cursor: { type: string }
+        "400":
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        "401":
+          description: Unauthorized
+    post:
+      summary: Create a new task
+      description: Creates a new task and assigns it to the specified user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskCreate' }
+      responses:
+        "201":
+          description: Task created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /tasks/{id}:
+    get:
+      summary: Get task by ID
+      description: Retrieves a single task by its unique identifier.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique task identifier (UUID)
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        "404":
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+components:
+  schemas:
+    Task:
+      type: object
+      properties:
+        id: { type: string, format: uuid, description: Unique identifier }
+        title: { type: string, description: Short task title }
+        status: { type: string, enum: [open, in_progress, done, cancelled], description: Current status }
+        assignee: { type: string, description: Username of assigned user }
+    TaskCreate:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, description: Task title }
+        assignee: { type: string, description: Username }
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, description: Machine-readable error code }
+        message: { type: string, description: Human-readable error message }
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+security:
+  - ApiKeyAuth: []
+`;
+
+// ── Eval engine ──
+const DIMENSIONS = [
+  { key: 'd1', name_zh: '语义描述完整性',    weight: 10, layer: '静态分析' },
+  { key: 'd2', name_zh: '参数类型精确性',    weight: 8,  layer: '静态分析' },
+  { key: 'd3', name_zh: '响应体结构完整性',  weight: 10, layer: '静态分析' },
+  { key: 'd4', name_zh: '错误响应质量',      weight: 9,  layer: '静态分析' },
+  { key: 'd5', name_zh: 'Schema 丰富度',     weight: 9,  layer: '静态分析' },
+  { key: 'd6', name_zh: '幂等性与副作用标注', weight: 7,  layer: '静态分析' },
+  { key: 'd7', name_zh: 'Auth & 安全规范',   weight: 7,  layer: '静态分析' },
+  { key: 'd8', name_zh: '可发现性 & 示例完备', weight: 6, layer: '静态分析' },
+];
+
+function evalSpec(spec) {
+  const paths   = spec.paths || {};
+  const schemas = (spec.components && spec.components.schemas) || {};
+  const ops = [];
+  for (const [path, methods] of Object.entries(paths)) {
+    for (const [method, op] of Object.entries(methods)) {
+      if (['get','post','put','patch','delete','options','head'].includes(method))
+        ops.push({ path, method, op });
+    }
+  }
+  const R = {};
+
+  // D1: Semantic description completeness
+  {
+    const checks = []; let total = 0, pass = 0;
+    for (const { path, method, op } of ops) {
+      const hasSumm = !!(op.summary && op.summary.trim().length > 5);
+      const hasDesc = !!(op.description && op.description.trim().length > 20);
+      checks.push({ label: method.toUpperCase() + ' ' + path + ' — summary',
+        status: hasSumm ? 'pass' : 'fail', detail: hasSumm ? op.summary : '缺少 summary 或过短' });
+      checks.push({ label: method.toUpperCase() + ' ' + path + ' — description',
+        status: hasDesc ? 'pass' : 'partial', detail: hasDesc ? '✓' : '缺少详细 description（建议 >20 字）' });
+      total += 2; pass += (hasSumm ? 1 : 0) + (hasDesc ? 1 : 0);
+    }
+    const infoDesc = !!(spec.info && spec.info.description && spec.info.description.length > 10);
+    checks.push({ label: 'info.description', status: infoDesc ? 'pass' : 'partial',
+      detail: infoDesc ? spec.info.description.substring(0, 60) : '建议在 info.description 中详述 API 用途' });
+    total++; pass += infoDesc ? 1 : 0;
+    R.d1 = { score: total > 0 ? pass / total : 0, checks, issues: [], recommendations: [] };
+    if (pass / total < 0.7) R.d1.recommendations.push('为每个 endpoint 补充完整的 summary（>5字）和 description（>20字），让 LLM 理解接口语义');
+  }
+
+  // D2: Parameter type precision
+  {
+    const checks = []; let total = 0, pass = 0;
+    for (const { path, method, op } of ops) {
+      for (const p of (op.parameters || [])) {
+        const sc = p.schema || {};
+        const hasType = !!sc.type;
+        const hasDesc = !!(p.description && p.description.length > 5);
+        const status = hasType && hasDesc ? 'pass' : (hasType ? 'partial' : 'fail');
+        checks.push({ label: path + ' > ' + p.name, status,
+          detail: hasType ? 'type:' + sc.type + (sc.format ? ' format:'+sc.format : '') + (sc.enum ? ' enum:['+sc.enum.join(',')+']' : '') : '缺少 schema.type' });
+        total++; pass += status === 'pass' ? 1 : (status === 'partial' ? 0.5 : 0);
+      }
+      if (op.requestBody) {
+        const hasContent = !!(op.requestBody.content && Object.keys(op.requestBody.content).length);
+        checks.push({ label: path + ' requestBody', status: hasContent ? 'pass' : 'fail',
+          detail: hasContent ? '✓ content schema 已定义' : '缺少 requestBody content schema' });
+        total++; pass += hasContent ? 1 : 0;
+      }
+    }
+    if (total === 0) { total = 1; pass = 1; checks.push({ label: '无参数接口', status: 'pass', detail: '无参数，跳过检查' }); }
+    R.d2 = { score: pass / total, checks, issues: [], recommendations: [] };
+    if (pass / total < 0.8) R.d2.recommendations.push('为所有参数补充 type、format、description，有限枚举值请使用 enum');
+  }
+
+  // D3: Response schema completeness
+  {
+    const checks = []; let total = 0, pass = 0;
+    for (const { path, method, op } of ops) {
+      const responses = op.responses || {};
+      const codes = Object.keys(responses);
+      const has2xx = codes.some(c => c.startsWith('2'));
+      const hasSchema = codes.filter(c => c.startsWith('2')).some(c => {
+        const r = responses[c];
+        return r.content && Object.values(r.content).some(ct => ct.schema);
+      });
+      checks.push({ label: method.toUpperCase() + ' ' + path + ' — 2xx schema',
+        status: has2xx && hasSchema ? 'pass' : (has2xx ? 'partial' : 'fail'),
+        detail: has2xx ? (hasSchema ? '✓ 定义了响应 schema' : '2xx 缺少 schema 定义') : '缺少 2xx 响应定义' });
+      total++; pass += (has2xx && hasSchema) ? 1 : (has2xx ? 0.5 : 0);
+    }
+    R.d3 = { score: total > 0 ? pass / total : 0, checks, issues: [], recommendations: [] };
+    if (pass / total < 0.8) R.d3.recommendations.push('为所有 2xx 响应定义详细 schema，便于 LLM 解析返回值');
+  }
+
+  // D4: Error response quality
+  {
+    const checks = []; let total = 0, pass = 0;
+    const errorCodes = ['400','401','403','404','422','429','500'];
+    for (const { path, method, op } of ops) {
+      const responses = op.responses || {};
+      const codes = Object.keys(responses);
+      const hasErr = codes.some(c => errorCodes.includes(c) || c === 'default');
+      const hasErrSchema = codes.filter(c => errorCodes.includes(c) || c === 'default').some(c => {
+        const r = responses[c];
+        return r.content && Object.values(r.content).some(ct => ct.schema);
+      });
+      checks.push({ label: method.toUpperCase() + ' ' + path + ' — 错误响应',
+        status: hasErr && hasErrSchema ? 'pass' : (hasErr ? 'partial' : 'fail'),
+        detail: hasErr ? (hasErrSchema ? '✓ 错误 schema 已定义' : '错误响应缺少 schema（建议含 code + message）') : '建议定义 400/404/500 错误响应' });
+      total++; pass += (hasErr && hasErrSchema) ? 1 : (hasErr ? 0.5 : 0);
+    }
+    R.d4 = { score: total > 0 ? pass / total : 0, checks, issues: [], recommendations: [] };
+    if (pass / total < 0.7) R.d4.recommendations.push('为每个接口定义 4xx/5xx 错误响应，schema 中包含机器可读的 code 字段');
+  }
+
+  // D5: Schema richness
+  {
+    const checks = []; let total = 0, pass = 0;
+    for (const [name, schema] of Object.entries(schemas)) {
+      const props = schema.properties || {};
+      const pNames = Object.keys(props);
+      const allHaveDesc = pNames.every(p => props[p].description && props[p].description.length > 3);
+      const allHaveType = pNames.every(p => props[p].type || props[p].$ref);
+      const hasRequired = !!(schema.required && schema.required.length > 0);
+      const s = (allHaveDesc ? 1 : 0) + (allHaveType ? 1 : 0) + (hasRequired ? 1 : 0);
+      checks.push({ label: 'Schema: ' + name,
+        status: s >= 3 ? 'pass' : (s >= 1 ? 'partial' : 'fail'),
+        detail: '属性数:' + pNames.length + ' 类型:' + (allHaveType?'✓':'✗') + ' 描述:' + (allHaveDesc?'✓':'✗') + ' required:' + (hasRequired?'✓':'✗') });
+      total++; pass += s / 3;
+    }
+    if (total === 0) { total = 1; pass = 0.5; checks.push({ label: '未定义 components/schemas', status: 'partial', detail: '建议在 components/schemas 中复用 schema 定义' }); }
+    R.d5 = { score: pass / total, checks, issues: [], recommendations: [] };
+    if (pass / total < 0.7) R.d5.recommendations.push('为每个 Schema 属性添加 type、description 和 example，并标注 required 字段');
+  }
+
+  // D6: Idempotency & side-effect annotation
+  {
+    const checks = []; let total = 0, pass = 0;
+    for (const { path, method, op } of ops) {
+      if (['get','head','options'].includes(method)) {
+        const desc = (op.description || '') + (op.summary || '');
+        const hasSE = /write|创|建|更新|删|发送|trigger/i.test(desc);
+        checks.push({ label: method.toUpperCase() + ' ' + path + ' — 只读方法',
+          status: !hasSE ? 'pass' : 'partial',
+          detail: !hasSE ? '✓ GET 接口，符合幂等性预期' : '描述中提及写操作，建议改用 POST/PUT' });
+        total++; pass += !hasSE ? 1 : 0.5;
+      } else {
+        const hasDesc = !!(op.description && op.description.length > 10);
+        checks.push({ label: method.toUpperCase() + ' ' + path + ' — 副作用说明',
+          status: hasDesc ? 'pass' : 'partial',
+          detail: hasDesc ? '✓ description 描述了操作效果' : '建议在 description 中说明操作副作用和幂等性' });
+        total++; pass += hasDesc ? 1 : 0.5;
+      }
+    }
+    R.d6 = { score: total > 0 ? pass / total : 0.8, checks, issues: [], recommendations: [] };
+  }
+
+  // D7: Auth & security
+  {
+    const checks = []; let total = 0, pass = 0;
+    const hasSS = !!(spec.components && spec.components.securitySchemes && Object.keys(spec.components.securitySchemes).length);
+    const hasGS = !!(spec.security && spec.security.length > 0);
+    checks.push({ label: 'securitySchemes 定义', status: hasSS ? 'pass' : 'fail',
+      detail: hasSS ? '✓ 已定义: ' + Object.keys(spec.components.securitySchemes).join(', ') : '缺少 components.securitySchemes 定义' });
+    checks.push({ label: '全局 security 声明', status: hasGS ? 'pass' : 'partial',
+      detail: hasGS ? '✓ 已声明全局 security' : '建议在根级别声明安全要求' });
+    total += 2; pass += (hasSS ? 1 : 0) + (hasGS ? 1 : 0);
+    for (const { path, method, op } of ops) {
+      if (method === 'get') continue;
+      const opSec = op.security !== undefined;
+      checks.push({ label: method.toUpperCase() + ' ' + path + ' — auth',
+        status: (opSec || hasGS) ? 'pass' : 'partial',
+        detail: (opSec || hasGS) ? '✓' : '建议为写操作显式声明 security' });
+      total++; pass += (opSec || hasGS) ? 1 : 0.5;
+    }
+    R.d7 = { score: total > 0 ? pass / total : 0, checks, issues: [], recommendations: [] };
+    if (!hasSS) R.d7.issues.push('未定义 securitySchemes，LLM 无法理解认证方式，会猜测或跳过认证');
+    R.d7.recommendations.push('定义 ApiKey / Bearer Token 认证方案，并为敏感接口显式声明 security');
+  }
+
+  // D8: Discoverability & examples
+  {
+    const checks = []; let total = 0, pass = 0;
+    for (const [name, schema] of Object.entries(schemas)) {
+      const hasEx = schema.example !== undefined || schema['x-examples'] !== undefined;
+      checks.push({ label: 'Schema ' + name + ' — example', status: hasEx ? 'pass' : 'partial',
+        detail: hasEx ? '✓ 有示例值' : '建议添加 example 帮助 LLM 生成正确格式的请求体' });
+      total++; pass += hasEx ? 1 : 0.3;
+    }
+    const hasTags = !!(spec.tags && spec.tags.length > 0);
+    checks.push({ label: 'tags 分组', status: hasTags ? 'pass' : 'partial',
+      detail: hasTags ? '✓ ' + spec.tags.map(t=>t.name).join(', ') : '建议使用 tags 对接口分组，便于 LLM 理解功能模块' });
+    total++; pass += hasTags ? 1 : 0.3;
+    const hasExtDocs = !!spec.externalDocs;
+    checks.push({ label: 'externalDocs', status: hasExtDocs ? 'pass' : 'partial',
+      detail: hasExtDocs ? '✓ ' + spec.externalDocs.url : '可选：指向详细文档' });
+    total++; pass += hasExtDocs ? 1 : 0.5;
+    if (total < 1) { total = 1; pass = 0.3; }
+    R.d8 = { score: pass / total, checks, issues: [], recommendations: [] };
+    if (pass / total < 0.6) R.d8.recommendations.push('为所有 Schema 添加 example，使用 tags 分组接口，显著提升 LLM 调用准确率');
+  }
+
+  let totalW = 0, wSum = 0;
+  for (const d of DIMENSIONS) { totalW += d.weight; wSum += (R[d.key].score || 0) * d.weight; }
+  return { overall: wSum / totalW, results: R };
+}
+
+function gradeFor(s) {
+  if (s >= .85) return { g: 'A', n: '就绪',   c: 'var(--grade-a)' };
+  if (s >= .70) return { g: 'B', n: '可用',   c: 'var(--grade-b)' };
+  if (s >= .50) return { g: 'C', n: '脆弱',   c: 'var(--grade-c)' };
+  return           { g: 'D', n: '不可用', c: 'var(--grade-d)' };
+}
+function scolor(s) { return s >= .8 ? 'var(--pass)' : s >= .6 ? 'var(--partial)' : 'var(--fail)'; }
+function sicon(st) {
+  if (st === 'pass')    return '<i class="bi bi-check-circle-fill" style="color:var(--pass);flex-shrink:0;margin-top:1px"></i>';
+  if (st === 'partial') return '<i class="bi bi-dash-circle-fill" style="color:var(--partial);flex-shrink:0;margin-top:1px"></i>';
+  return '<i class="bi bi-x-circle-fill" style="color:var(--fail);flex-shrink:0;margin-top:1px"></i>';
+}
+
+function renderResults(overall, dimResults) {
+  const gi = gradeFor(overall);
+  document.getElementById('res-score').textContent = Math.round(overall * 100);
+  document.getElementById('res-score').style.color = gi.c;
+  document.getElementById('res-grade').textContent = gi.g;
+  document.getElementById('res-grade').className = 'grade grade-' + gi.g;
+  document.getElementById('res-grade-name').textContent = gi.n;
+
+  // Dim summary
+  document.getElementById('dim-summary').innerHTML = DIMENSIONS.map(d => {
+    const r = dimResults[d.key];
+    const s = Math.round(r.score * 100);
+    const c = scolor(r.score);
+    return `<div class="flex-between" style="padding:5px 0;border-bottom:1px solid var(--border-soft)">
+      <span style="font-size:13px">${d.name_zh}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="bar-sm"><div class="bar-fill" style="width:${s}%;background:${c}"></div></div>
+        <span style="font-family:var(--mono);font-size:13px;color:${c};min-width:30px;text-align:right">${s}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Radar chart
+  const ctx = document.getElementById('res-radar').getContext('2d');
+  if (radarChart) radarChart.destroy();
+  radarChart = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: DIMENSIONS.map(d => d.name_zh.substring(0, 7)),
+      datasets: [{ data: DIMENSIONS.map(d => Math.round(dimResults[d.key].score * 100)),
+        backgroundColor: 'rgba(99,102,241,.2)', borderColor: 'rgba(99,102,241,.8)',
+        pointBackgroundColor: '#6366f1', borderWidth: 2, pointRadius: 3 }]
+    },
+    options: {
+      responsive: false, plugins: { legend: { display: false } },
+      scales: { r: { min: 0, max: 100, ticks: { display: false, stepSize: 25 },
+        grid: { color: 'rgba(42,42,62,.8)' }, angleLines: { color: 'rgba(42,42,62,.8)' },
+        pointLabels: { color: '#94a3b8', font: { size: 10, family: 'Noto Sans SC' } }
+      }}
+    }
+  });
+
+  // Dim details
+  document.getElementById('dim-details').innerHTML = DIMENSIONS.map(d => {
+    const r = dimResults[d.key];
+    const s = Math.round(r.score * 100);
+    const c = scolor(r.score);
+    const checks = r.checks.map(ck =>
+      `<div class="chk">${sicon(ck.status)}<div>
+        <span style="font-size:13px">${ck.label}</span>
+        ${ck.detail && ck.detail !== '✓' ? `<div style="font-size:11px;color:var(--text-3);margin-top:2px">${ck.detail}</div>` : ''}
+      </div></div>`
+    ).join('');
+    const issues = (r.issues || []).map(iss =>
+      `<div class="issue-pill"><i class="bi bi-exclamation-triangle-fill" style="margin-top:1px;flex-shrink:0"></i>${iss}</div>`
+    ).join('');
+    const recs = (r.recommendations || []).map(rec =>
+      `<div class="rec-pill"><i class="bi bi-lightbulb-fill" style="margin-top:1px;flex-shrink:0"></i>${rec}</div>`
+    ).join('');
+    return `<div class="dim-row">
+      <div class="dim-row-header">
+        <span class="layer-badge">${d.layer}</span>
+        <span class="dim-name" style="margin-left:10px">${d.name_zh}</span>
+        <span class="dim-score" style="color:${c}">${s}</span>
+        <div class="bar-sm"><div class="bar-fill" style="width:${s}%;background:${c}"></div></div>
+        <i class="bi bi-chevron-down toggle-icon" style="margin-left:8px"></i>
+      </div>
+      <div class="dim-body">
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:8px;font-family:var(--mono)">
+          权重: ${d.weight}/66 (${Math.round(d.weight/66*100)}%) · 检测层: ${d.layer}
+        </div>
+        ${checks}
+        ${issues ? '<div style="margin-top:10px">' + issues + '</div>' : ''}
+        ${recs   ? '<div style="margin-top:8px">'  + recs   + '</div>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Main flow ──
+function getSpecText() {
+  const activeMode = document.querySelector('.mode-tab.active');
+  if (activeMode && activeMode.dataset.mode === 'paste')
+    return document.getElementById('spec-paste').value.trim();
+  return specText;
+}
+
+function startAnalysis() {
+  const text = getSpecText();
+  if (!text) { alert('请先上传文件或粘贴 OpenAPI 规范内容'); return; }
+  let spec;
+  try { spec = jsyaml.load(text); }
+  catch(e) {
+    try { spec = JSON.parse(text); }
+    catch(e2) { alert('解析失败：' + e.message); return; }
+  }
+  if (!spec || !spec.paths) {
+    alert('规范格式错误：未找到 paths 字段，请确认这是有效的 OpenAPI 规范'); return;
+  }
+  const { overall, results } = evalSpec(spec);
+  document.getElementById('upload-panel').style.display = 'none';
+  document.getElementById('results-panel').style.display = '';
+  renderResults(overall, results);
+}
+
+function resetAnalysis() {
+  specText = '';
+  document.getElementById('upload-panel').style.display = '';
+  document.getElementById('results-panel').style.display = 'none';
+  document.getElementById('start-btn').disabled = true;
+  document.getElementById('file-summary').style.display = 'none';
+  if (radarChart) { radarChart.destroy(); radarChart = null; }
+}
 </script>
 {% endblock %}

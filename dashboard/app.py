@@ -146,42 +146,14 @@ def index():
 
 @app.route("/api-eval")
 def api_eval_detail():
-    """API 评估详情页：各维度得分 + 检查项 + 修复建议。"""
-    report = _load_report("api")
-    if not report:
-        return render_template("no_data.html", page="api-eval")
-
-    dimensions = report.get("dimensions", [])
-    for dim in dimensions:
-        dim["grade_info"] = _grade_info(dim.get("score", 0))
-
-    return render_template(
-        "api_detail.html",
-        report=report,
-        dimensions=dimensions,
-        overall_grade=_grade_info(report.get("overall_score", 0)),
-        is_demo=report.get("_is_demo", False),
-    )
+    """API AI-Ready 测试页（前端静态分析 + 3层架构）。"""
+    return render_template("api_detail.html")
 
 
 @app.route("/skill-eval")
 def skill_eval_detail():
-    """Skill 评估详情页：结构、指令质量、触发准确率、功能可靠性。"""
-    report = _load_report("skill")
-    if not report:
-        return render_template("no_data.html", page="skill-eval")
-
-    dimensions = report.get("dimensions", [])
-    for dim in dimensions:
-        dim["grade_info"] = _skill_grade_info(dim.get("score", 0))
-
-    return render_template(
-        "skill_detail.html",
-        report=report,
-        dimensions=dimensions,
-        overall_grade=_skill_grade_info(report.get("overall_score", 0)),
-        is_demo=report.get("_is_demo", False),
-    )
+    """Skill 评估页（多模式文件加载 + 3层分析）。"""
+    return render_template("skill_detail.html")
 
 
 @app.route("/trends")
@@ -197,60 +169,8 @@ def trends():
 
 @app.route("/run-eval", methods=["GET", "POST"])
 def run_eval():
-    """在线运行评估（上传 spec 文件或粘贴内容进行快速静态分析）。"""
-    if request.method == "GET":
-        return render_template("run_eval.html")
-
-    spec_content = ""
-    # 接受文件上传
-    if "spec_file" in request.files:
-        f = request.files["spec_file"]
-        if f and f.filename:
-            spec_content = f.read().decode("utf-8", errors="replace")
-    # 接受粘贴文本
-    if not spec_content:
-        spec_content = request.form.get("spec_text", "")
-
-    if not spec_content.strip():
-        return render_template("run_eval.html", error="请上传或粘贴 OpenAPI YAML/JSON 内容")
-
-    try:
-        import yaml as _yaml, json as _json, tempfile, os as _os
-
-        # 写入临时文件
-        suffix = ".json" if spec_content.strip().startswith("{") else ".yaml"
-        with tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False, encoding="utf-8") as tmp:
-            tmp.write(spec_content)
-            tmp_path = tmp.name
-
-        try:
-            from api_eval.scanner import APIScanner
-            from api_eval.report import APIReport
-
-            scanner = APIScanner(tmp_path)
-            static_results = scanner.run()
-            report = APIReport({"static": static_results, "dynamic": {}, "agent_trial": {}})
-            report_data = report.build()
-            report_data["_is_demo"] = False
-            report_data["_is_inline"] = True
-        finally:
-            _os.unlink(tmp_path)
-
-        dimensions = report_data.get("dimensions", [])
-        for dim in dimensions:
-            dim["grade_info"] = _grade_info(dim.get("score", 0))
-
-        return render_template(
-            "api_detail.html",
-            report=report_data,
-            dimensions=dimensions,
-            overall_grade=_grade_info(report_data.get("overall_score", 0)),
-            is_demo=False,
-            inline_mode=True,
-        )
-
-    except Exception as e:
-        return render_template("run_eval.html", error=f"评估失败: {str(e)[:200]}")
+    """/run-eval 已合并到 /api-eval，此处重定向。"""
+    return redirect(url_for("api_eval_detail"), code=301)
 
 
 # ─────────────────────────────────────── JSON API endpoints ─────

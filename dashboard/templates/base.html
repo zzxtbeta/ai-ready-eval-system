@@ -303,29 +303,30 @@
       <div class="sb-brand-sub">Agent Quality System</div>
     </div>
     <div class="sb-nav">
-      <div class="sb-section">仪表盘</div>
+      <div class="sb-section">主页</div>
       <a href="{{ url_for('index') }}" class="sb-link {% if request.endpoint == 'index' %}active{% endif %}">
-        <i class="bi bi-grid-1x2-fill"></i> 概览
+        <i class="bi bi-house-fill"></i> 产品首页
       </a>
-      <div class="sb-section">评估模块</div>
-      <a href="{{ url_for('api_eval_detail') }}" class="sb-link {% if request.endpoint == 'api_eval_detail' %}active{% endif %}">
-        <i class="bi bi-plug-fill"></i> API 评估详情
+      <div class="sb-section">评估</div>
+      <a href="{{ url_for('skill_eval_detail') }}" class="sb-link highlight {% if request.endpoint == 'skill_eval_detail' %}active{% endif %}">
+        <i class="bi bi-lightning-fill"></i> Skill 评估
       </a>
-      <a href="{{ url_for('skill_eval_detail') }}" class="sb-link {% if request.endpoint == 'skill_eval_detail' %}active{% endif %}">
-        <i class="bi bi-lightning-fill"></i> Skill 评估详情
+      <a href="{{ url_for('api_eval_detail') }}" class="sb-link highlight {% if request.endpoint == 'api_eval_detail' %}active{% endif %}">
+        <i class="bi bi-plug-fill"></i> API 测试
       </a>
+      <a href="#" class="sb-link" style="opacity:.4;cursor:default" title="即将上线">
+        <i class="bi bi-layers-fill"></i> 联合测试
+        <span style="font-size:10px;color:var(--text-3);margin-left:auto">即将</span>
+      </a>
+      <div class="sb-section">其他</div>
       <a href="{{ url_for('trends') }}" class="sb-link {% if request.endpoint == 'trends' %}active{% endif %}">
-        <i class="bi bi-graph-up"></i> 趋势分析
-      </a>
-      <div class="sb-section">工具</div>
-      <a href="{{ url_for('run_eval') }}" class="sb-link highlight {% if request.endpoint == 'run_eval' %}active{% endif %}">
-        <i class="bi bi-play-circle-fill"></i> ★ 在线评估
+        <i class="bi bi-graph-up"></i> 趋势
       </a>
       <a href="/api/scores" class="sb-link" target="_blank">
         <i class="bi bi-code-slash"></i> JSON API
       </a>
       <a href="https://github.com/zzxtbeta/ai-ready-eval-system" class="sb-link" target="_blank">
-        <i class="bi bi-github"></i> GitHub 源码
+        <i class="bi bi-github"></i> GitHub
       </a>
     </div>
   </nav>
@@ -333,9 +334,14 @@
   <div class="main-content">
     <div class="topbar">
       <div class="topbar-title">{% block page_title %}概览{% endblock %}</div>
-      <a href="{{ url_for('run_eval') }}" class="btn btn-primary btn-sm">
-        <i class="bi bi-play-fill"></i>运行评估
-      </a>
+      <div style="display:flex;gap:8px">
+        <a href="{{ url_for('skill_eval_detail') }}" class="btn btn-outline btn-sm">
+          <i class="bi bi-lightning-fill"></i> Skill
+        </a>
+        <a href="{{ url_for('api_eval_detail') }}" class="btn btn-primary btn-sm">
+          <i class="bi bi-plug-fill"></i> API
+        </a>
+      </div>
     </div>
     <div class="page-body">
       {% block content %}{% endblock %}
