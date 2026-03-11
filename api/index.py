@@ -14,5 +14,4 @@ if _root not in sys.path:
 
 from dashboard.app import app  # noqa: E402
 
-# Vercel Python Runtime 需要名为 `handler` 或直接使用 `app` 的 WSGI callable
-handler = app
+# Vercel Python Runtime 自动识别名为 `app` 的 WSGI callable，无需额外声明 handler
