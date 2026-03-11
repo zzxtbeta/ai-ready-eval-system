@@ -3,187 +3,365 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}AI-Ready Eval System{% endblock %}</title>
+  <title>{% block title %}AI-Ready Eval{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <style>
     :root {
-      --brand-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-      --sidebar-width: 230px;
-      --font-mono: 'JetBrains Mono', monospace;
+      --bg: #0a0a0f;
+      --bg-card: #141420;
+      --bg-raised: #1a1a2e;
+      --border: #2a2a3e;
+      --border-soft: #1e1e30;
+      --text: #e2e8f0;
+      --text-2: #94a3b8;
+      --text-3: #64748b;
+      --accent: #6366f1;
+      --accent-h: #818cf8;
+      --pass: #22c55e;
+      --partial: #f59e0b;
+      --fail: #ef4444;
+      --grade-a: #22c55e;
+      --grade-b: #6366f1;
+      --grade-c: #f59e0b;
+      --grade-d: #ef4444;
+      --font: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "JetBrains Mono", "Fira Code", monospace;
+      --sidebar-width: 220px;
+      --radius: 10px;
     }
-    body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1e293b; }
-    /* Sidebar */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Sidebar ── */
     .sidebar {
       width: var(--sidebar-width);
       min-height: 100vh;
-      background: #0f172a;
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
       position: fixed;
       top: 0; left: 0;
       display: flex; flex-direction: column;
       z-index: 100;
     }
-    .sidebar-brand {
-      padding: 20px 20px 16px;
-      border-bottom: 1px solid #1e293b;
+    .sb-brand {
+      padding: 20px 18px 16px;
+      border-bottom: 1px solid var(--border-soft);
     }
-    .sidebar-brand-title {
+    .sb-brand-name {
       font-size: 13px; font-weight: 700;
-      background: var(--brand-gradient);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      color: var(--accent-h);
       letter-spacing: 0.5px;
+      font-family: var(--mono);
     }
-    .sidebar-brand-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
-    .sidebar-nav { padding: 12px 0; flex: 1; }
-    .sidebar-nav .nav-link {
-      display: flex; align-items: center; gap: 10px;
-      color: #94a3b8; font-size: 13.5px; font-weight: 500;
-      padding: 9px 20px; border-radius: 0;
+    .sb-brand-sub { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+    .sb-nav { padding: 10px 0; flex: 1; overflow-y: auto; }
+    .sb-section {
+      font-size: 10px; font-weight: 700;
+      color: var(--text-3);
+      padding: 14px 18px 4px;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+    }
+    .sb-link {
+      display: flex; align-items: center; gap: 9px;
+      color: var(--text-2); font-size: 13.5px;
+      padding: 8px 18px; cursor: pointer;
       transition: all .15s;
+      border-left: 2px solid transparent;
     }
-    .sidebar-nav .nav-link:hover { color: #e2e8f0; background: #1e293b; }
-    .sidebar-nav .nav-link.active { color: #fff; background: #1e293b; border-left: 3px solid #3b82f6; }
-    .sidebar-nav .nav-link i { font-size: 16px; width: 18px; text-align: center; }
-    .sidebar-section { font-size: 10px; color: #475569; padding: 16px 20px 4px; letter-spacing: 1px; text-transform: uppercase; }
-    /* Main */
+    .sb-link:hover { color: var(--text); background: var(--bg-raised); }
+    .sb-link.active {
+      color: var(--text);
+      background: rgba(99,102,241,.12);
+      border-left-color: var(--accent);
+    }
+    .sb-link i { font-size: 15px; width: 17px; text-align: center; flex-shrink: 0; }
+    .sb-link.highlight { color: var(--accent-h); }
+    .sb-link.highlight:hover { color: #fff; background: rgba(99,102,241,.15); }
+
+    /* ── Main layout ── */
     .main-content { margin-left: var(--sidebar-width); min-height: 100vh; }
     .topbar {
-      background: #fff; border-bottom: 1px solid #e2e8f0;
-      padding: 12px 28px; display: flex; align-items: center; justify-content: space-between;
+      background: rgba(10,10,15,.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 28px;
+      display: flex; align-items: center; justify-content: space-between;
       position: sticky; top: 0; z-index: 50;
     }
-    .topbar-title { font-size: 16px; font-weight: 600; color: #1e293b; }
-    .page-body { padding: 28px; }
-    /* Score card */
-    .score-card {
-      background: #fff; border-radius: 12px; border: 1px solid #e2e8f0;
-      padding: 24px; position: relative; overflow: hidden;
+    .topbar-title { font-size: 15px; font-weight: 600; color: var(--text); }
+    .page-body { padding: 28px; max-width: 1400px; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
     }
-    .score-card::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-      background: var(--brand-gradient);
+    .card-title {
+      font-size: 12px; font-weight: 700;
+      color: var(--text-3);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
     }
-    .score-number { font-size: 48px; font-weight: 700; line-height: 1; font-family: var(--font-mono); }
-    .grade-badge {
-      display: inline-flex; align-items: center; padding: 4px 12px;
-      border-radius: 999px; font-size: 13px; font-weight: 600;
+
+    /* ── Grid helpers ── */
+    .g2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+    .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .g4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    .g12 { display: grid; grid-template-columns: 1fr 2fr; gap: 18px; }
+    .g21 { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; }
+    @media (max-width: 900px) {
+      .g2, .g3, .g4, .g12, .g21 { grid-template-columns: 1fr; }
     }
-    /* Dimension row */
-    .dim-row { background: #fff; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px; overflow: hidden; }
-    .dim-row-header { padding: 14px 18px; display: flex; align-items: center; cursor: pointer; }
-    .dim-row-header:hover { background: #f8fafc; }
-    .dim-name { font-weight: 600; font-size: 14px; flex: 1; }
-    .dim-score-text { font-family: var(--font-mono); font-size: 15px; font-weight: 600; margin-right: 12px; }
-    .progress-sm { height: 6px; border-radius: 3px; background: #e2e8f0; overflow: hidden; width: 100px; }
-    .progress-sm-fill { height: 100%; border-radius: 3px; }
-    .dim-body { padding: 0 18px 14px; display: none; }
-    .dim-body.show { display: block; }
-    /* Check item */
-    .check-item {
-      display: flex; align-items: flex-start; gap: 10px;
-      padding: 8px 0; border-bottom: 1px solid #f1f5f9;
-      font-size: 13px;
+
+    /* ── Score display ── */
+    .score-big {
+      font-size: 56px; font-weight: 700; line-height: 1;
+      font-family: var(--mono);
     }
-    .check-item:last-child { border-bottom: none; }
-    .check-pass { color: #22c55e; }
-    .check-partial { color: #eab308; }
-    .check-fail { color: #ef4444; }
-    /* Issue / Recommendation pills */
+    .score-label { font-size: 12px; color: var(--text-3); margin-top: 6px; }
+
+    /* ── Grade badges ── */
+    .grade {
+      display: inline-flex; align-items: center;
+      padding: 3px 10px; border-radius: 6px;
+      font-size: 12px; font-weight: 700;
+      font-family: var(--mono); letter-spacing: .5px;
+    }
+    .grade-A { background: rgba(34,197,94,.15); color: var(--grade-a); }
+    .grade-B { background: rgba(99,102,241,.15); color: var(--grade-b); }
+    .grade-C { background: rgba(245,158,11,.15); color: var(--grade-c); }
+    .grade-D { background: rgba(239,68,68,.15); color: var(--grade-d); }
+
+    /* ── Layer badges ── */
+    .layer-badge {
+      display: inline-block;
+      font-family: var(--mono); font-size: 10px;
+      background: rgba(99,102,241,.12);
+      color: var(--accent-h);
+      border: 1px solid rgba(99,102,241,.25);
+      padding: 1px 7px; border-radius: 4px;
+      letter-spacing: .3px;
+    }
+
+    /* ── Dimension rows ── */
+    .dim-row {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      overflow: hidden;
+    }
+    .dim-row-header {
+      padding: 13px 16px;
+      display: flex; align-items: center; gap: 10px;
+      cursor: pointer;
+      transition: background .12s;
+    }
+    .dim-row-header:hover { background: var(--bg-raised); }
+    .dim-name { font-weight: 600; font-size: 13.5px; flex: 1; color: var(--text); }
+    .dim-score { font-family: var(--mono); font-size: 14px; font-weight: 600; margin-right: 10px; }
+    .bar-sm { height: 5px; border-radius: 3px; background: var(--border); width: 90px; overflow: hidden; flex-shrink: 0; }
+    .bar-fill { height: 100%; border-radius: 3px; }
+    .toggle-icon { color: var(--text-3); font-size: 13px; transition: transform .2s; flex-shrink: 0; }
+    .dim-body { padding: 0 16px 14px; display: none; }
+    .dim-body.open { display: block; }
+
+    /* ── Check items ── */
+    .chk { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
+    .chk:last-child { border-bottom: none; }
+    .chk-icon { margin-top: 1px; flex-shrink: 0; font-size: 14px; }
+    .chk-pass { color: var(--pass); }
+    .chk-partial { color: var(--partial); }
+    .chk-fail { color: var(--fail); }
+
+    /* ── Pills ── */
     .issue-pill {
-      background: #fef2f2; color: #dc2626; border-radius: 6px;
-      padding: 6px 10px; font-size: 12px; margin-bottom: 4px;
+      background: rgba(239,68,68,.1); color: #fca5a5;
+      border: 1px solid rgba(239,68,68,.2);
+      border-radius: 6px; padding: 5px 10px;
+      font-size: 12px; margin-bottom: 4px;
       display: flex; align-items: flex-start; gap: 6px;
     }
     .rec-pill {
-      background: #eff6ff; color: #1d4ed8; border-radius: 6px;
-      padding: 6px 10px; font-size: 12px; margin-bottom: 4px;
+      background: rgba(99,102,241,.1); color: var(--accent-h);
+      border: 1px solid rgba(99,102,241,.2);
+      border-radius: 6px; padding: 5px 10px;
+      font-size: 12px; margin-bottom: 4px;
       display: flex; align-items: flex-start; gap: 6px;
     }
-    /* Demo banner */
+    .info-pill {
+      background: rgba(148,163,184,.08); color: var(--text-2);
+      border: 1px solid var(--border);
+      border-radius: 6px; padding: 5px 10px;
+      font-size: 12px; margin-bottom: 4px;
+      display: flex; align-items: flex-start; gap: 6px;
+    }
+
+    /* ── Weight detail ── */
+    .weight-detail {
+      display: none;
+      background: var(--bg-raised); border: 1px solid var(--border);
+      border-radius: 6px; padding: 10px 12px;
+      font-size: 12px; color: var(--text-2); margin-top: 8px;
+      font-family: var(--mono);
+    }
+    .weight-detail.show { display: block; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 16px; border-radius: 7px;
+      font-size: 13px; font-weight: 500;
+      cursor: pointer; border: none; transition: all .15s;
+      font-family: var(--font);
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-h); }
+    .btn-outline {
+      background: transparent; color: var(--text-2);
+      border: 1px solid var(--border);
+    }
+    .btn-outline:hover { background: var(--bg-raised); color: var(--text); }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+    .btn-ghost { background: transparent; color: var(--text-3); border: none; }
+    .btn-ghost:hover { color: var(--text-2); }
+
+    /* ── Demo banner ── */
     .demo-banner {
-      background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%);
-      border: 1px solid #fcd34d; border-radius: 8px; padding: 10px 16px;
-      font-size: 13px; color: #78350f; margin-bottom: 20px;
+      background: rgba(245,158,11,.1);
+      border: 1px solid rgba(245,158,11,.3);
+      border-radius: 8px; padding: 10px 16px;
+      font-size: 13px; color: #fcd34d; margin-bottom: 20px;
       display: flex; align-items: center; gap: 8px;
     }
-    /* Stat mini */
-    .stat-mini { text-align: center; padding: 16px 12px; }
-    .stat-mini-value { font-size: 28px; font-weight: 700; font-family: var(--font-mono); }
-    .stat-mini-label { font-size: 12px; color: #64748b; margin-top: 4px; }
-    /* Responsive */
-    @media (max-width: 768px) {
-      .sidebar { position: relative; width: 100%; min-height: auto; }
-      .main-content { margin-left: 0; }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center; padding: 80px 40px;
+      color: var(--text-3);
     }
+    .empty-state-icon { font-size: 48px; margin-bottom: 16px; color: var(--text-3); }
+    .empty-state h2 { font-size: 18px; font-weight: 600; color: var(--text-2); margin-bottom: 8px; }
+    .empty-state p { font-size: 13px; margin-bottom: 24px; }
+
+    /* ── Stat mini ── */
+    .stat { padding: 0; }
+    .stat-value { font-size: 32px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+    .stat-label { font-size: 11px; color: var(--text-3); margin-top: 5px; text-transform: uppercase; letter-spacing: .8px; }
+
+    /* ── Progress bar ── */
+    .progress { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+    .progress-bar { height: 100%; border-radius: 3px; transition: width .4s; }
+
+    /* ── Misc ── */
+    .text-pass { color: var(--pass); }
+    .text-partial { color: var(--partial); }
+    .text-fail { color: var(--fail); }
+    .text-accent { color: var(--accent-h); }
+    .text-muted { color: var(--text-3); }
+    .text-2 { color: var(--text-2); }
+    .mono { font-family: var(--mono); }
+    .mb-2 { margin-bottom: 8px; }
+    .mb-3 { margin-bottom: 14px; }
+    .mb-4 { margin-bottom: 20px; }
+    .mt-2 { margin-top: 8px; }
+    .mt-3 { margin-top: 14px; }
+    .gap-2 { gap: 8px; }
+    .flex { display: flex; }
+    .flex-center { display: flex; align-items: center; }
+    .flex-between { display: flex; align-items: center; justify-content: space-between; }
+    .flex-wrap { flex-wrap: wrap; }
+    hr.dim-sep { border: none; border-top: 1px solid var(--border-soft); margin: 10px 0; }
+    code { font-family: var(--mono); font-size: 12px; background: var(--bg-raised); padding: 1px 5px; border-radius: 3px; color: var(--accent-h); }
   </style>
   {% block extra_head %}{% endblock %}
 </head>
 <body>
-  <!-- Sidebar -->
   <nav class="sidebar">
-    <div class="sidebar-brand">
-      <div class="sidebar-brand-title">AI-READY EVAL</div>
-      <div class="sidebar-brand-sub">Agent Quality System</div>
+    <div class="sb-brand">
+      <div class="sb-brand-name">AI-READY EVAL</div>
+      <div class="sb-brand-sub">Agent Quality System</div>
     </div>
-    <div class="sidebar-nav">
-      <div class="sidebar-section">Dashboard</div>
-      <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">
+    <div class="sb-nav">
+      <div class="sb-section">仪表盘</div>
+      <a href="{{ url_for('index') }}" class="sb-link {% if request.endpoint == 'index' %}active{% endif %}">
         <i class="bi bi-grid-1x2-fill"></i> 概览
       </a>
-      <div class="sidebar-section">评估模块</div>
-      <a href="{{ url_for('api_eval_detail') }}" class="nav-link {% if request.endpoint == 'api_eval_detail' %}active{% endif %}">
-        <i class="bi bi-plug-fill"></i> API 评估
+      <div class="sb-section">评估模块</div>
+      <a href="{{ url_for('api_eval_detail') }}" class="sb-link {% if request.endpoint == 'api_eval_detail' %}active{% endif %}">
+        <i class="bi bi-plug-fill"></i> API 评估详情
       </a>
-      <a href="{{ url_for('skill_eval_detail') }}" class="nav-link {% if request.endpoint == 'skill_eval_detail' %}active{% endif %}">
-        <i class="bi bi-lightning-fill"></i> Skill 评估
+      <a href="{{ url_for('skill_eval_detail') }}" class="sb-link {% if request.endpoint == 'skill_eval_detail' %}active{% endif %}">
+        <i class="bi bi-lightning-fill"></i> Skill 评估详情
       </a>
-      <a href="{{ url_for('trends') }}" class="nav-link {% if request.endpoint == 'trends' %}active{% endif %}">
+      <a href="{{ url_for('trends') }}" class="sb-link {% if request.endpoint == 'trends' %}active{% endif %}">
         <i class="bi bi-graph-up"></i> 趋势分析
       </a>
-      <div class="sidebar-section">工具</div>
-      <a href="{{ url_for('run_eval') }}" class="nav-link {% if request.endpoint == 'run_eval' %}active{% endif %}">
-        <i class="bi bi-play-circle-fill"></i> 在线评估
+      <div class="sb-section">工具</div>
+      <a href="{{ url_for('run_eval') }}" class="sb-link highlight {% if request.endpoint == 'run_eval' %}active{% endif %}">
+        <i class="bi bi-play-circle-fill"></i> ★ 在线评估
       </a>
-      <a href="/api/scores" class="nav-link" target="_blank">
+      <a href="/api/scores" class="sb-link" target="_blank">
         <i class="bi bi-code-slash"></i> JSON API
       </a>
-      <a href="https://github.com/your-org/ai-ready-eval" class="nav-link" target="_blank">
-        <i class="bi bi-github"></i> GitHub
+      <a href="https://github.com/zzxtbeta/ai-ready-eval-system" class="sb-link" target="_blank">
+        <i class="bi bi-github"></i> GitHub 源码
       </a>
     </div>
   </nav>
 
-  <!-- Main -->
   <div class="main-content">
     <div class="topbar">
       <div class="topbar-title">{% block page_title %}概览{% endblock %}</div>
-      <div class="d-flex align-items-center gap-3">
-        <a href="{{ url_for('run_eval') }}" class="btn btn-sm btn-primary px-3">
-          <i class="bi bi-play-fill me-1"></i>运行评估
-        </a>
-      </div>
+      <a href="{{ url_for('run_eval') }}" class="btn btn-primary btn-sm">
+        <i class="bi bi-play-fill"></i>运行评估
+      </a>
     </div>
-
     <div class="page-body">
       {% block content %}{% endblock %}
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script>
-    // Toggle dimension details
-    document.querySelectorAll('.dim-row-header').forEach(header => {
-      header.addEventListener('click', () => {
-        const body = header.nextElementSibling;
-        if (body && body.classList.contains('dim-body')) {
-          body.classList.toggle('show');
-          const icon = header.querySelector('.toggle-icon');
-          if (icon) icon.style.transform = body.classList.contains('show') ? 'rotate(180deg)' : '';
-        }
-      });
+    // Dimension accordion
+    document.addEventListener('click', function(e) {
+      var hdr = e.target.closest('.dim-row-header');
+      if (!hdr) return;
+      var body = hdr.nextElementSibling;
+      if (body && body.classList.contains('dim-body')) {
+        body.classList.toggle('open');
+        var icon = hdr.querySelector('.toggle-icon');
+        if (icon) icon.style.transform = body.classList.contains('open') ? 'rotate(180deg)' : '';
+      }
+    });
+    // Weight toggle
+    document.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-weight-toggle]');
+      if (btn) {
+        var el = document.getElementById(btn.dataset.weightToggle);
+        if (el) el.classList.toggle('show');
+      }
     });
   </script>
   {% block extra_scripts %}{% endblock %}

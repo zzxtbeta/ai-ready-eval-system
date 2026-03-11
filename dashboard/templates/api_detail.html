@@ -6,103 +6,135 @@
 {% if is_demo %}
 <div class="demo-banner">
   <i class="bi bi-info-circle-fill"></i>
-  演示数据 — TaskMaster API（模拟评估结果）<a href="/run-eval" class="ms-2 fw-semibold text-decoration-none" style="color:#92400e">上传真实 spec →</a>
+  演示数据 — TaskMaster API
+  <a href="/run-eval" style="color:#fcd34d;font-weight:600;margin-left:6px">上传真实 spec →</a>
 </div>
 {% endif %}
 
 {% if inline_mode is defined and inline_mode %}
-<div class="alert alert-success py-2 px-3 mb-3" style="font-size:13px">
-  <i class="bi bi-check-circle-fill me-2"></i>在线静态分析完成 — 结果如下
+<div style="background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:10px 16px;font-size:13px;color:#86efac;margin-bottom:16px;display:flex;align-items:center;gap:8px">
+  <i class="bi bi-check-circle-fill"></i>在线静态分析完成 — 结果如下
 </div>
 {% endif %}
 
-<!-- Header -->
-<div class="row g-3 mb-4">
-  <div class="col-md-4">
-    <div class="score-card text-center">
-      <div class="text-muted" style="font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">AI-Readiness Score</div>
-      <div class="score-number" style="color:{{ overall_grade.color }}">{{ "%.0f"|format(report.overall_score * 100) }}<span style="font-size:22px;color:#94a3b8">%</span></div>
-      <div style="margin-top:8px">
-        <span class="grade-badge" style="background:{{ overall_grade.bg }};color:{{ overall_grade.color }};">
-          Grade {{ overall_grade.grade }} · {{ overall_grade.label }}
-        </span>
-      </div>
-      <div class="text-muted mt-2" style="font-size:12px">加权综合 8 维度</div>
+<!-- Header row -->
+<div class="g12 mb-4">
+  <div class="card" style="text-align:center">
+    <div class="card-title">AI-Readiness Score</div>
+    <div class="score-big" style="color:{{ overall_grade.color }}">{{ "%.0f"|format(report.overall_score * 100) }}<span style="font-size:20px;color:var(--text-3)">分</span></div>
+    <div style="margin-top:10px">
+      <span class="grade grade-{{ overall_grade.grade }}">{{ overall_grade.grade }} · {{ overall_grade.label }}</span>
     </div>
+    <div style="font-size:12px;color:var(--text-3);margin-top:8px">加权综合 8 维度</div>
+    <canvas id="radarChart" height="160" style="margin-top:16px"></canvas>
   </div>
-  <div class="col-md-8">
-    <div class="score-card h-100">
-      {% set spec_info = report.get('spec_info', {}) %}
-      <div class="fw-semibold mb-3">规范信息</div>
-      <div class="row g-2">
-        <div class="col-sm-6"><span class="text-muted" style="font-size:12px">Title</span><div class="fw-semibold" style="font-size:14px">{{ spec_info.get('title', '—') }}</div></div>
-        <div class="col-sm-6"><span class="text-muted" style="font-size:12px">Version</span><div class="fw-semibold" style="font-size:14px">{{ spec_info.get('version', '—') }}</div></div>
-        <div class="col-sm-6"><span class="text-muted" style="font-size:12px">Format</span><div class="fw-semibold" style="font-size:14px">{{ spec_info.get('format', 'OpenAPI') }}</div></div>
-        <div class="col-sm-6"><span class="text-muted" style="font-size:12px">Endpoints</span><div class="fw-semibold" style="font-size:14px">{{ spec_info.get('endpoint_count', '—') }}</div></div>
+  <div class="card">
+    {% set spec_info = report.get('spec_info', {}) %}
+    <div class="card-title">规范信息</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+      <div>
+        <div style="font-size:11px;color:var(--text-3)">接口名称</div>
+        <div style="font-size:14px;font-weight:600;margin-top:3px">{{ spec_info.get('title', '—') }}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-3)">版本</div>
+        <div class="mono" style="font-size:14px;font-weight:600;margin-top:3px">{{ spec_info.get('version', '—') }}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-3)">格式</div>
+        <div style="font-size:14px;font-weight:600;margin-top:3px">{{ spec_info.get('format', 'OpenAPI') }}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-3)">Endpoints</div>
+        <div class="mono" style="font-size:14px;font-weight:600;margin-top:3px">{{ spec_info.get('endpoint_count', '—') }}</div>
       </div>
     </div>
+    <hr class="dim-sep">
+    <div class="card-title" style="margin-bottom:8px">维度得分</div>
+    {% for dim in dimensions %}
+    <div class="flex-between mb-2">
+      <span style="font-size:13px;color:var(--text-2)">{{ dim.name_zh if dim.name_zh else dim.name }}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="bar-sm"><div class="bar-fill" style="width:{{ (dim.score * 100)|int }}%;background:{% if dim.score >= 0.85 %}var(--pass){% elif dim.score >= 0.6 %}var(--partial){% else %}var(--fail){% endif %}"></div></div>
+        <span class="mono" style="font-size:12px;min-width:28px;text-align:right">{{ "%.0f"|format(dim.score * 100) }}</span>
+      </div>
+    </div>
+    {% endfor %}
   </div>
-</div>
-
-<!-- Dimensions table -->
-<div class="score-card mb-4">
-  <div class="fw-semibold mb-3">8 维度评分</div>
-  <canvas id="radarChart" height="120" class="mb-3"></canvas>
 </div>
 
 <!-- Dimension details -->
-<div class="fw-semibold mb-2" style="font-size:15px">维度详情 <span class="text-muted fw-normal" style="font-size:13px">（点击展开检查项）</span></div>
+<div style="font-size:15px;font-weight:600;margin-bottom:12px">
+  维度详情
+  <span style="font-size:12px;color:var(--text-3);font-weight:400;margin-left:6px">点击展开检查项</span>
+</div>
+
+{% set layer_map = {
+  '语义描述完整性': '静态分析',
+  '参数类型精确性': '静态分析',
+  '响应体结构完整性': '静态分析',
+  '错误响应质量': '静态分析',
+  'Schema 丰富度': '静态分析',
+  '幂等性与副作用': '静态分析',
+  '运行时健壮性': '静态+动态',
+  'Auth & 安全规范': '静态分析',
+  '可发现性': '静态分析'
+} %}
+
 {% for dim in dimensions %}
-<div class="dim-row mb-2">
+{% set dim_name = dim.name_zh if dim.name_zh else dim.name %}
+{% set layer = layer_map.get(dim_name, '静态分析') %}
+{% set score_pct = (dim.score * 100)|int %}
+{% set bar_color = 'var(--pass)' if dim.score >= 0.85 else ('var(--partial)' if dim.score >= 0.6 else 'var(--fail)') %}
+<div class="dim-row">
   <div class="dim-row-header">
-    <div>
-      <div class="dim-name">{{ dim.name_zh if dim.name_zh else dim.name }}</div>
-      <div class="text-muted" style="font-size:12px">{{ dim.description if dim.description else '' }}</div>
-    </div>
-    <div class="d-flex align-items-center gap-3 ms-3" style="flex-shrink:0">
-      <div class="progress-sm" style="width:80px">
-        <div class="progress-sm-fill" style="width:{{ (dim.score * 100)|int }}%;background:{% if dim.score >= 0.85 %}#22c55e{% elif dim.score >= 0.70 %}#eab308{% elif dim.score >= 0.50 %}#f97316{% else %}#ef4444{% endif %}"></div>
-      </div>
-      <div class="dim-score-text" style="color:{{ dim.grade_info.color }}">{{ "%.0f"|format(dim.score * 100) }}%</div>
-      <span class="grade-badge" style="background:{{ dim.grade_info.bg }};color:{{ dim.grade_info.color }};font-size:12px">{{ dim.grade_info.grade }}</span>
-      <i class="bi bi-chevron-down toggle-icon text-muted" style="transition:transform .2s"></i>
-    </div>
+    <span class="layer-badge">{{ layer }}</span>
+    <span class="dim-name" style="margin-left:10px">{{ dim_name }}</span>
+    <button data-weight-toggle="weight-{{ loop.index }}" class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px;margin-right:8px" title="查看权重明细">权重</button>
+    <span class="dim-score" style="color:{{ bar_color }}">{{ score_pct }}</span>
+    <div class="bar-sm"><div class="bar-fill" style="width:{{ score_pct }}%;background:{{ bar_color }}"></div></div>
+    <i class="bi bi-chevron-down toggle-icon" style="margin-left:8px"></i>
+  </div>
+  <div class="weight-detail" id="weight-{{ loop.index }}">
+    权重: {{ dim.weight if dim.weight is defined else '—' }}/{{ report.get('total_weight', 66) }} ·
+    占比: {{ ((dim.weight / report.get('total_weight', 66)) * 100)|int if dim.weight is defined else '—' }}% ·
+    检测层: {{ layer }} ·
+    依据: AI-Ready 评估框架 v2（静态分析维度）
   </div>
   <div class="dim-body">
+    {% if dim.get('description') %}
+    <div style="font-size:13px;color:var(--text-2);margin-bottom:12px">{{ dim.description }}</div>
+    {% endif %}
     {% if dim.get('checks') %}
-    <div class="mb-3">
-      <div class="text-muted mb-2" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">检查项</div>
-      {% for chk in dim.checks %}
-      <div class="check-item">
-        <i class="bi {% if chk.result == 'pass' %}bi-check-circle-fill check-pass{% elif chk.result == 'partial' %}bi-dash-circle-fill check-partial{% else %}bi-x-circle-fill check-fail{% endif %} mt-1" style="flex-shrink:0"></i>
-        <div>
-          <div style="font-weight:500">{{ chk.name }}</div>
-          {% if chk.get('detail') %}<div class="text-muted" style="font-size:12px">{{ chk.detail }}</div>{% endif %}
-        </div>
-        <div class="ms-auto" style="flex-shrink:0">
-          {% if chk.result == 'pass' %}<span class="badge" style="background:#f0fdf4;color:#16a34a">通过</span>
-          {% elif chk.result == 'partial' %}<span class="badge" style="background:#fefce8;color:#a16207">部分</span>
-          {% else %}<span class="badge" style="background:#fef2f2;color:#dc2626">不通过</span>{% endif %}
-        </div>
+    <div class="card-title" style="margin-bottom:6px">检查项</div>
+    {% for chk in dim.checks %}
+    <div class="chk">
+      {% if chk.result == 'pass' %}<i class="bi bi-check-circle-fill chk-icon chk-pass"></i>
+      {% elif chk.result == 'partial' %}<i class="bi bi-dash-circle-fill chk-icon chk-partial"></i>
+      {% else %}<i class="bi bi-x-circle-fill chk-icon chk-fail"></i>{% endif %}
+      <div>
+        <div style="font-size:13px;font-weight:500">{{ chk.name }}</div>
+        {% if chk.get('detail') %}<div style="font-size:12px;color:var(--text-3);margin-top:2px">{{ chk.detail }}</div>{% endif %}
       </div>
-      {% endfor %}
+      <div style="margin-left:auto;flex-shrink:0">
+        {% if chk.result == 'pass' %}<span style="font-size:11px;background:rgba(34,197,94,.15);color:var(--pass);padding:2px 7px;border-radius:4px">通过</span>
+        {% elif chk.result == 'partial' %}<span style="font-size:11px;background:rgba(245,158,11,.15);color:var(--partial);padding:2px 7px;border-radius:4px">部分</span>
+        {% else %}<span style="font-size:11px;background:rgba(239,68,68,.15);color:var(--fail);padding:2px 7px;border-radius:4px">不通过</span>{% endif %}
+      </div>
     </div>
+    {% endfor %}
     {% endif %}
     {% if dim.get('issues') %}
-    <div class="mb-3">
-      <div class="text-muted mb-2" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">发现的问题</div>
-      {% for issue in dim.issues %}
-      <div class="issue-pill"><i class="bi bi-exclamation-triangle-fill mt-1" style="flex-shrink:0"></i>{{ issue }}</div>
-      {% endfor %}
-    </div>
+    <div class="card-title" style="margin-top:12px;margin-bottom:6px">发现的问题</div>
+    {% for issue in dim.issues %}
+    <div class="issue-pill"><i class="bi bi-exclamation-triangle-fill" style="margin-top:1px;flex-shrink:0"></i>{{ issue }}</div>
+    {% endfor %}
     {% endif %}
     {% if dim.get('recommendations') %}
-    <div>
-      <div class="text-muted mb-2" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">修复建议</div>
-      {% for rec in dim.recommendations %}
-      <div class="rec-pill"><i class="bi bi-lightbulb-fill mt-1" style="flex-shrink:0"></i>{{ rec }}</div>
-      {% endfor %}
-    </div>
+    <div class="card-title" style="margin-top:12px;margin-bottom:6px">修复建议</div>
+    {% for rec in dim.recommendations %}
+    <div class="rec-pill"><i class="bi bi-lightbulb-fill" style="margin-top:1px;flex-shrink:0"></i>{{ rec }}</div>
+    {% endfor %}
     {% endif %}
   </div>
 </div>
@@ -120,26 +152,27 @@ new Chart(document.getElementById('radarChart'), {
   data: {
     labels: dimLabels,
     datasets: [{
-      label: 'AI-Readiness Score',
+      label: 'AI-Readiness',
       data: dimScoresPct,
-      backgroundColor: 'rgba(59,130,246,0.12)',
-      borderColor: '#3b82f6',
-      pointBackgroundColor: '#3b82f6',
+      backgroundColor: 'rgba(99,102,241,.18)',
+      borderColor: '#6366f1',
+      pointBackgroundColor: '#6366f1',
       pointRadius: 4,
       borderWidth: 2,
     }]
   },
   options: {
     responsive: true,
+    plugins: { legend: { display: false } },
     scales: {
       r: {
         min: 0, max: 100,
-        ticks: { stepSize: 25, font: { size: 10 } },
-        pointLabels: { font: { size: 12 } },
-        grid: { color: '#e2e8f0' },
+        ticks: { display: false, stepSize: 25 },
+        grid: { color: 'rgba(42,42,62,.8)' },
+        angleLines: { color: 'rgba(42,42,62,.8)' },
+        pointLabels: { color: '#94a3b8', font: { size: 10, family: 'Noto Sans SC' } },
       }
     },
-    plugins: { legend: { display: false } },
   }
 });
 </script>

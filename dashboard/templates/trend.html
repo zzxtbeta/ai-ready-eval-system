@@ -3,23 +3,27 @@
 {% block page_title %}趋势分析{% endblock %}
 
 {% block content %}
-<div class="score-card mb-4">
-  <div class="fw-semibold mb-3">评估得分趋势 <span class="text-muted fw-normal" style="font-size:13px">— 近 8 次评估历史</span></div>
+<div class="card mb-4">
+  <div class="flex-between mb-3">
+    <div style="font-size:14px;font-weight:600">评估得分趋势
+      <span style="font-size:12px;color:var(--text-3);font-weight:400;margin-left:6px">近 8 次评估历史</span>
+    </div>
+  </div>
   <canvas id="trendChart" height="80"></canvas>
 </div>
 
-<div class="score-card">
-  <div class="fw-semibold mb-3">历史评估数据</div>
-  <div class="table-responsive">
-    <table class="table table-sm table-hover" style="font-size:13px">
-      <thead class="table-light">
-        <tr>
-          <th>日期</th>
-          <th>API 得分</th>
-          <th>API 等级</th>
-          <th>Skill 得分</th>
-          <th>Skill 等级</th>
-          <th>变化</th>
+<div class="card">
+  <div style="font-size:14px;font-weight:600;margin-bottom:16px">历史评估数据</div>
+  <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border)">
+          <th style="padding:8px 12px;text-align:left;color:var(--text-3);font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase">日期</th>
+          <th style="padding:8px 12px;text-align:center;color:var(--text-3);font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase">API 得分</th>
+          <th style="padding:8px 12px;text-align:center;color:var(--text-3);font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase">API 等级</th>
+          <th style="padding:8px 12px;text-align:center;color:var(--text-3);font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase">Skill 得分</th>
+          <th style="padding:8px 12px;text-align:center;color:var(--text-3);font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase">Skill 等级</th>
+          <th style="padding:8px 12px;text-align:center;color:var(--text-3);font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase">变化</th>
         </tr>
       </thead>
       <tbody>
@@ -28,24 +32,32 @@
         {% set skill_pct = (row.skill_score * 100)|int %}
         {% set api_grade = 'A' if row.api_score >= 0.85 else ('B' if row.api_score >= 0.70 else ('C' if row.api_score >= 0.50 else 'D')) %}
         {% set skill_grade = 'A' if row.skill_score >= 0.85 else ('B' if row.skill_score >= 0.70 else ('C' if row.skill_score >= 0.50 else 'D')) %}
-        {% set grade_color = '#22c55e' if api_grade == 'A' else ('#eab308' if api_grade == 'B' else ('#f97316' if api_grade == 'C' else '#ef4444')) %}
-        <tr>
-          <td class="font-monospace">{{ row.date }}</td>
-          <td><strong style="color:{{ grade_color }}">{{ api_pct }}%</strong></td>
-          <td><span class="badge rounded-pill" style="background:{{ grade_color }};font-size:11px">{{ api_grade }}</span></td>
-          <td><strong>{{ skill_pct }}%</strong></td>
-          <td>
-            {% set sg_color = '#22c55e' if skill_grade == 'A' else ('#eab308' if skill_grade == 'B' else ('#f97316' if skill_grade == 'C' else '#ef4444')) %}
-            <span class="badge rounded-pill" style="background:{{ sg_color }};font-size:11px">{{ skill_grade }}</span>
+        {% set api_bar_c = 'var(--pass)' if row.api_score >= 0.85 else ('var(--grade-b)' if row.api_score >= 0.70 else ('var(--partial)' if row.api_score >= 0.50 else 'var(--fail)')) %}
+        {% set skill_bar_c = 'var(--pass)' if row.skill_score >= 0.85 else ('var(--grade-b)' if row.skill_score >= 0.70 else ('var(--partial)' if row.skill_score >= 0.50 else 'var(--fail)')) %}
+        <tr style="border-bottom:1px solid var(--border-soft){% if loop.last %};border-bottom:none{% endif %}">
+          <td style="padding:10px 12px">
+            <span class="mono" style="color:var(--text-2)">{{ row.date }}</span>
           </td>
-          <td>
+          <td style="padding:10px 12px;text-align:center">
+            <span class="mono" style="font-weight:600;color:{{ api_bar_c }}">{{ api_pct }}</span>
+          </td>
+          <td style="padding:10px 12px;text-align:center">
+            <span class="grade grade-{{ api_grade }}">{{ api_grade }}</span>
+          </td>
+          <td style="padding:10px 12px;text-align:center">
+            <span class="mono" style="font-weight:600;color:{{ skill_bar_c }}">{{ skill_pct }}</span>
+          </td>
+          <td style="padding:10px 12px;text-align:center">
+            <span class="grade grade-{{ skill_grade }}">{{ skill_grade }}</span>
+          </td>
+          <td style="padding:10px 12px;text-align:center">
             {% if i > 0 %}
               {% set prev = trend_table[i-1] %}
               {% set diff = ((row.api_score - prev.api_score) * 100)|round(1) %}
-              {% if diff > 0 %}<span class="text-success">▲ {{ diff }}%</span>
-              {% elif diff < 0 %}<span class="text-danger">▼ {{ diff|abs }}%</span>
-              {% else %}<span class="text-muted">—</span>{% endif %}
-            {% else %}<span class="text-muted">基线</span>{% endif %}
+              {% if diff > 0 %}<span style="color:var(--pass);font-family:var(--mono);font-size:12px">▲ {{ diff }}</span>
+              {% elif diff < 0 %}<span style="color:var(--fail);font-family:var(--mono);font-size:12px">▼ {{ diff|abs }}</span>
+              {% else %}<span style="color:var(--text-3)">—</span>{% endif %}
+            {% else %}<span style="color:var(--text-3);font-size:12px">基线</span>{% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -70,21 +82,25 @@ new Chart(document.getElementById('trendChart'), {
       {
         label: 'API AI-Readiness',
         data: apiScores,
-        borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59,130,246,0.1)',
-        tension: 0.4, fill: true, pointRadius: 5, pointHoverRadius: 7,
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,.1)',
+        tension: 0.4, fill: true,
+        pointRadius: 5, pointHoverRadius: 7,
+        pointBackgroundColor: '#6366f1',
       },
       {
         label: 'Skill Quality',
         data: skillScores,
-        borderColor: '#8b5cf6',
-        backgroundColor: 'rgba(139,92,246,0.1)',
-        tension: 0.4, fill: true, pointRadius: 5, pointHoverRadius: 7,
+        borderColor: '#a78bfa',
+        backgroundColor: 'rgba(167,139,250,.08)',
+        tension: 0.4, fill: true,
+        pointRadius: 5, pointHoverRadius: 7,
+        pointBackgroundColor: '#a78bfa',
       },
       {
-        label: 'Agent-Ready 阈值 (85%)',
+        label: 'Agent-Ready 阈值 (85)',
         data: Array(labels.length).fill(85),
-        borderColor: '#22c55e',
+        borderColor: 'rgba(34,197,94,.5)',
         borderDash: [6, 4],
         borderWidth: 1.5,
         pointRadius: 0,
@@ -96,16 +112,22 @@ new Chart(document.getElementById('trendChart'), {
     responsive: true,
     interaction: { mode: 'index', intersect: false },
     plugins: {
-      legend: { position: 'top', labels: { font: { size: 12 } } },
-      tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw}%` } },
+      legend: {
+        position: 'top',
+        labels: { color: '#94a3b8', font: { size: 11, family: 'Noto Sans SC' }, boxWidth: 12 }
+      },
+      tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw}` } },
     },
     scales: {
       y: {
         min: 0, max: 100,
-        ticks: { callback: v => v + '%' },
-        grid: { color: '#f1f5f9' },
+        grid: { color: 'rgba(42,42,62,.6)' },
+        ticks: { color: '#64748b', font: { size: 11 }, callback: v => v },
       },
-      x: { grid: { display: false } },
+      x: {
+        grid: { display: false },
+        ticks: { color: '#64748b', font: { size: 11 } },
+      },
     },
   }
 });

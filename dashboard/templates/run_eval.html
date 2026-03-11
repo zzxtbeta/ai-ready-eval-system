@@ -2,79 +2,651 @@
 {% block title %}在线评估 — AI-Ready Eval{% endblock %}
 {% block page_title %}在线静态评估{% endblock %}
 
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+{% endblock %}
+
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-lg-8">
-    {% if error %}
-    <div class="alert alert-danger py-2 px-3 mb-3" style="font-size:13px">
-      <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ error }}
-    </div>
-    {% endif %}
+<div style="max-width:900px">
 
-    <div class="score-card">
-      <div class="fw-semibold mb-1" style="font-size:16px">上传 OpenAPI 规范</div>
-      <div class="text-muted mb-4" style="font-size:13px">支持 YAML 或 JSON 格式的 OpenAPI 3.x / Swagger 2.0 规范文件，立即获得 AI-Readiness 评分。</div>
-
-      <form method="POST" enctype="multipart/form-data">
-        <!-- File Upload -->
-        <div class="mb-4">
-          <label class="form-label fw-semibold" style="font-size:14px">方式一：上传文件</label>
-          <input type="file" class="form-control" name="spec_file" accept=".yaml,.yml,.json"
-                 style="font-size:13px">
-          <div class="form-text">接受 .yaml / .yml / .json 格式</div>
-        </div>
-
-        <div class="d-flex align-items-center gap-3 mb-4">
-          <hr class="flex-grow-1"><span class="text-muted" style="font-size:13px">或</span><hr class="flex-grow-1">
-        </div>
-
-        <!-- Paste Area -->
-        <div class="mb-4">
-          <label class="form-label fw-semibold" style="font-size:14px">方式二：粘贴内容</label>
-          <textarea name="spec_text" class="form-control font-monospace" rows="14"
-                    placeholder="openapi: '3.0.0'&#10;info:&#10;  title: My API&#10;  version: 1.0.0&#10;paths:&#10;  /users:&#10;    get:&#10;      summary: List users&#10;      ..."
-                    style="font-size:12px;resize:vertical"></textarea>
-        </div>
-
-        <button type="submit" class="btn btn-primary px-4">
-          <i class="bi bi-play-fill me-2"></i>开始静态分析
-        </button>
-        <span class="text-muted ms-3" style="font-size:12px">预计耗时 &lt; 3 秒</span>
-      </form>
-    </div>
-
-    <!-- Info Cards -->
-    <div class="row g-3 mt-2">
-      <div class="col-md-4">
-        <div class="score-card text-center py-3">
-          <i class="bi bi-shield-check" style="font-size:24px;color:#3b82f6"></i>
-          <div class="fw-semibold mt-2" style="font-size:13px">8 个评估维度</div>
-          <div class="text-muted" style="font-size:12px">语义描述、响应大小、错误质量等</div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="score-card text-center py-3">
-          <i class="bi bi-lock" style="font-size:24px;color:#22c55e"></i>
-          <div class="fw-semibold mt-2" style="font-size:13px">本地分析</div>
-          <div class="text-muted" style="font-size:12px">规范内容不会存储或上传第三方</div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="score-card text-center py-3">
-          <i class="bi bi-lightning-charge" style="font-size:24px;color:#eab308"></i>
-          <div class="fw-semibold mt-2" style="font-size:13px">即时结果</div>
-          <div class="text-muted" style="font-size:12px">秒级静态分析，无需 LLM Key</div>
-        </div>
+  <!-- Upload panel -->
+  <div class="card mb-4" id="upload-panel">
+    <div class="flex-between mb-3">
+      <div>
+        <div style="font-size:16px;font-weight:600;margin-bottom:4px">上传 OpenAPI 规范</div>
+        <div style="font-size:13px;color:var(--text-2)">支持 YAML / JSON 格式的 OpenAPI 3.x / Swagger 2.0 规范文件，立即在浏览器端完成 AI-Readiness 静态分析。</div>
       </div>
     </div>
 
-    <!-- CLI hint -->
-    <div class="score-card mt-3" style="background:#0f172a;color:#e2e8f0;">
-      <div class="fw-semibold mb-2" style="font-size:13px;color:#94a3b8">💻 CLI 深度评估（支持动态探针 + LLM Agent Trial）</div>
-      <pre style="font-size:12px;color:#7dd3fc;margin:0">pip install -r requirements.txt
-python main.py eval-api --spec path/to/openapi.yaml --base-url https://api.example.com
-python main.py eval-skill --skill path/to/SKILL.md</pre>
+    <!-- Drop zone -->
+    <div id="drop-zone" style="
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .15s;
+      margin-bottom: 20px;
+    " onclick="document.getElementById('file-input').click()">
+      <i class="bi bi-cloud-upload" style="font-size:36px;color:var(--text-3);display:block;margin-bottom:12px"></i>
+      <div style="font-size:14px;color:var(--text-2);margin-bottom:6px">点击或拖拽上传</div>
+      <div style="font-size:12px;color:var(--text-3)">.yaml / .yml / .json</div>
+      <input type="file" id="file-input" accept=".yaml,.yml,.json" style="display:none">
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;color:var(--text-3);font-size:12px">
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+      <span>或粘贴内容</span>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+    </div>
+
+    <textarea id="spec-input" rows="12" style="
+      width:100%; background:var(--bg-raised); border:1px solid var(--border);
+      color:var(--text); border-radius:8px; padding:12px;
+      font-family:var(--mono); font-size:12px; resize:vertical; outline:none;
+    " placeholder="openapi: '3.0.0'&#10;info:&#10;  title: My API&#10;  version: 1.0.0&#10;paths:&#10;  /users:&#10;    get:&#10;      summary: 获取用户列表&#10;      description: 返回所有用户信息，支持分页&#10;      ..."></textarea>
+
+    <div style="display:flex;align-items:center;gap:12px;margin-top:16px">
+      <button class="btn btn-primary" id="run-btn" onclick="runEval()">
+        <i class="bi bi-play-fill"></i>开始静态分析
+      </button>
+      <button class="btn btn-outline btn-sm" onclick="loadDemo()">
+        <i class="bi bi-file-earmark-code"></i>加载示例
+      </button>
+      <span style="font-size:12px;color:var(--text-3);margin-left:auto">
+        <i class="bi bi-lock-fill" style="color:var(--pass)"></i> 纯本地分析，不上传任何数据
+      </span>
     </div>
   </div>
+
+  <!-- Feature cards -->
+  <div class="g3 mb-4">
+    <div class="card" style="text-align:center;padding:20px">
+      <i class="bi bi-layers" style="font-size:28px;color:var(--accent-h);display:block;margin-bottom:10px"></i>
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px">8 个评估维度</div>
+      <div style="font-size:12px;color:var(--text-3)">语义描述、响应大小、错误质量等</div>
+    </div>
+    <div class="card" style="text-align:center;padding:20px">
+      <i class="bi bi-lightning-charge-fill" style="font-size:28px;color:var(--partial);display:block;margin-bottom:10px"></i>
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px">即时出结果</div>
+      <div style="font-size:12px;color:var(--text-3)">秒级静态分析，无需 LLM Key</div>
+    </div>
+    <div class="card" style="text-align:center;padding:20px">
+      <i class="bi bi-lock-fill" style="font-size:28px;color:var(--pass);display:block;margin-bottom:10px"></i>
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px">本地隐私保护</div>
+      <div style="font-size:12px;color:var(--text-3)">规范内容不会存储或传出浏览器</div>
+    </div>
+  </div>
+
+  <!-- CLI hint -->
+  <div class="card" style="background:var(--bg-raised)">
+    <div style="font-size:12px;color:var(--text-3);margin-bottom:8px;font-weight:700;letter-spacing:.8px;text-transform:uppercase">
+      CLI 深度评估（静态+动态+LLM Agent Trial）
+    </div>
+    <pre style="font-size:12px;color:var(--accent-h);margin:0;overflow-x:auto">pip install -r requirements.txt
+python main.py eval-api --spec path/to/openapi.yaml --base-url https://api.example.com
+python main.py eval-skill --skill path/to/SKILL.md</pre>
+  </div>
+
+  <!-- Results panel (hidden initially) -->
+  <div id="results-panel" style="display:none;margin-top:28px">
+    <div class="flex-between mb-4">
+      <div style="font-size:18px;font-weight:700">评估结果</div>
+      <button class="btn btn-outline btn-sm" onclick="resetEval()">
+        <i class="bi bi-arrow-left"></i>重新评估
+      </button>
+    </div>
+
+    <!-- Score overview -->
+    <div class="g12 mb-4">
+      <div class="card" style="display:flex;align-items:center;gap:24px">
+        <div>
+          <div id="res-score" class="score-big" style="color:var(--accent-h)">—</div>
+          <div class="score-label">综合 AI-Readiness 分</div>
+          <div style="margin-top:10px"><span id="res-grade" class="grade">—</span><span id="res-grade-name" style="margin-left:8px;font-size:13px;color:var(--text-2)"></span></div>
+        </div>
+        <canvas id="res-radar" width="180" height="180"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title">维度概览</div>
+        <div id="dim-summary"></div>
+      </div>
+    </div>
+
+    <!-- Dimension details -->
+    <div id="dim-details"></div>
+  </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ── Demo spec ──
+const DEMO_SPEC = `openapi: "3.0.0"
+info:
+  title: TaskMaster API
+  version: 1.2.0
+  description: A production-grade task management API for AI agent integration
+paths:
+  /tasks:
+    get:
+      summary: List all tasks
+      description: Returns a paginated list of tasks filtered by status and assignee. Supports cursor-based pagination for large datasets.
+      parameters:
+        - name: status
+          in: query
+          description: Filter by task status (open, in_progress, done, cancelled)
+          schema:
+            type: string
+            enum: [open, in_progress, done, cancelled]
+        - name: limit
+          in: query
+          description: Number of results per page (1-100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: Paginated list of tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+                  total:
+                    type: integer
+                  next_cursor:
+                    type: string
+        "400":
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "401":
+          description: Unauthorized - missing or invalid API key
+    post:
+      summary: Create a new task
+      description: Creates a new task and assigns it to the specified user. Returns the created task with generated ID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        "201":
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /tasks/{id}:
+    get:
+      summary: Get task by ID
+      description: Retrieves a single task by its unique identifier, including all metadata and history.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique task identifier (UUID format)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        "404":
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique task identifier
+        title:
+          type: string
+          description: Short task title (max 200 chars)
+        description:
+          type: string
+          description: Detailed task description in markdown
+        status:
+          type: string
+          enum: [open, in_progress, done, cancelled]
+          description: Current task status
+        assignee:
+          type: string
+          description: Username of the assigned user
+        created_at:
+          type: string
+          format: date-time
+          description: ISO 8601 creation timestamp
+    TaskCreate:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          description: Task title
+        description:
+          type: string
+          description: Detailed description
+        assignee:
+          type: string
+          description: Username to assign
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error context
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+security:
+  - ApiKeyAuth: []
+`;
+
+// ── Eval engine ──
+const DIMENSIONS = [
+  { key: 'd1', name_zh: '语义描述完整性', weight: 10, layer: '静态分析' },
+  { key: 'd2', name_zh: '参数类型精确性', weight: 8, layer: '静态分析' },
+  { key: 'd3', name_zh: '响应体结构完整性', weight: 10, layer: '静态分析' },
+  { key: 'd4', name_zh: '错误响应质量', weight: 9, layer: '静态分析' },
+  { key: 'd5', name_zh: 'Schema 丰富度', weight: 9, layer: '静态分析' },
+  { key: 'd6', name_zh: '幂等性与副作用标注', weight: 7, layer: '静态分析' },
+  { key: 'd7', name_zh: 'Auth & 安全规范', weight: 7, layer: '静态分析' },
+  { key: 'd8', name_zh: '可发现性 & 示例完备度', weight: 6, layer: '静态分析' },
+];
+
+function evalSpec(spec) {
+  const paths = spec.paths || {};
+  const ops = [];
+  for (const [path, methods] of Object.entries(paths)) {
+    for (const [method, op] of Object.entries(methods)) {
+      if (['get','post','put','patch','delete','options','head'].includes(method)) {
+        ops.push({ path, method, op });
+      }
+    }
+  }
+  const schemas = (spec.components && spec.components.schemas) ? spec.components.schemas : {};
+
+  const results = {};
+
+  // D1: Semantic description completeness
+  {
+    const checks = [];
+    let total = 0, pass = 0;
+    for (const { path, method, op } of ops) {
+      const hasSummary = !!(op.summary && op.summary.trim().length > 5);
+      const hasDesc = !!(op.description && op.description.trim().length > 20);
+      checks.push({ label: `${method.toUpperCase()} ${path} — summary`, status: hasSummary ? 'pass' : 'fail', detail: hasSummary ? op.summary : '缺少 summary 或过短' });
+      checks.push({ label: `${method.toUpperCase()} ${path} — description`, status: hasDesc ? 'pass' : 'partial', detail: hasDesc ? '✓' : '缺少详细 description（建议 >20 字）' });
+      total += 2; pass += (hasSummary ? 1 : 0) + (hasDesc ? 1 : 0);
+    }
+    // info description
+    const infoDesc = !!(spec.info && spec.info.description && spec.info.description.length > 10);
+    checks.push({ label: 'info.description', status: infoDesc ? 'pass' : 'partial', detail: infoDesc ? spec.info.description.substring(0, 60) : '建议在 info.description 中详述 API 用途' });
+    total += 1; pass += infoDesc ? 1 : 0;
+    results.d1 = { score: total > 0 ? pass / total : 0, checks, issues: [], recommendations: [] };
+    if (pass / total < 0.7) results.d1.recommendations.push('为每个 endpoint 补充完整的 summary 和 description，让 LLM 理解接口语义');
+  }
+
+  // D2: Parameter type precision
+  {
+    const checks = [];
+    let total = 0, pass = 0;
+    for (const { path, method, op } of ops) {
+      const params = op.parameters || [];
+      for (const p of params) {
+        const schema = p.schema || {};
+        const hasType = !!schema.type;
+        const hasEnum = !!schema.enum;
+        const hasFormat = !!schema.format;
+        const hasDesc = !!(p.description && p.description.length > 5);
+        const status = hasType && hasDesc ? 'pass' : (hasType ? 'partial' : 'fail');
+        checks.push({ label: `${path} > ${p.name}`, status, detail: hasType ? `type:${schema.type}${hasFormat?' format:'+schema.format:''}${hasEnum?' enum:'+schema.enum.join(','):''}` : '缺少 schema.type' });
+        total++; pass += status === 'pass' ? 1 : (status === 'partial' ? 0.5 : 0);
+      }
+      // body
+      const rb = op.requestBody;
+      if (rb) {
+        const hasContent = !!(rb.content && Object.keys(rb.content).length);
+        checks.push({ label: `${path} requestBody`, status: hasContent ? 'pass' : 'fail', detail: hasContent ? 'content schema defined' : '缺少 requestBody content schema' });
+        total++; pass += hasContent ? 1 : 0;
+      }
+    }
+    if (total === 0) { total = 1; pass = 1; checks.push({ label: '无参数接口', status: 'pass', detail: '无需检查' }); }
+    results.d2 = { score: pass / total, checks, issues: [], recommendations: [] };
+    if (pass / total < 0.8) results.d2.recommendations.push('为所有参数补充 type、format、description，有限枚举值请使用 enum');
+  }
+
+  // D3: Response schema completeness
+  {
+    const checks = [];
+    let total = 0, pass = 0;
+    for (const { path, method, op } of ops) {
+      const responses = op.responses || {};
+      const codes = Object.keys(responses);
+      const has2xx = codes.some(c => c.startsWith('2'));
+      const hasSchema = codes.filter(c => c.startsWith('2')).some(c => {
+        const r = responses[c];
+        return r.content && Object.values(r.content).some(ct => ct.schema);
+      });
+      checks.push({ label: `${method.toUpperCase()} ${path} — 2xx schema`, status: has2xx && hasSchema ? 'pass' : (has2xx ? 'partial' : 'fail'), detail: has2xx ? (hasSchema ? '✓ 定义了响应 schema' : '2xx 响应缺少 schema 定义') : '缺少 2xx 响应' });
+      total++; pass += (has2xx && hasSchema) ? 1 : (has2xx ? 0.5 : 0);
+    }
+    results.d3 = { score: total > 0 ? pass / total : 0, checks, issues: [], recommendations: [] };
+    if (pass / total < 0.8) results.d3.recommendations.push('为所有 2xx 响应定义详细 schema，便于 LLM 解析返回值');
+  }
+
+  // D4: Error response quality
+  {
+    const checks = [];
+    let total = 0, pass = 0;
+    const errorCodes = ['400', '401', '403', '404', '422', '429', '500'];
+    for (const { path, method, op } of ops) {
+      const responses = op.responses || {};
+      const codes = Object.keys(responses);
+      const hasError = codes.some(c => errorCodes.includes(c) || c === 'default');
+      const hasErrorSchema = codes.filter(c => errorCodes.includes(c) || c === 'default').some(c => {
+        const r = responses[c];
+        return r.content && Object.values(r.content).some(ct => ct.schema);
+      });
+      checks.push({ label: `${method.toUpperCase()} ${path} — 错误响应`, status: hasError && hasErrorSchema ? 'pass' : (hasError ? 'partial' : 'fail'), detail: hasError ? (hasErrorSchema ? '✓ 错误 schema 已定义' : '错误响应缺少 schema（建议含 code + message）') : '建议定义至少 400/404/500 错误响应' });
+      total++; pass += (hasError && hasErrorSchema) ? 1 : (hasError ? 0.5 : 0);
+    }
+    results.d4 = { score: total > 0 ? pass / total : 0, checks, issues: [], recommendations: [] };
+    if (pass / total < 0.7) results.d4.recommendations.push('为每个接口定义 4xx/5xx 错误响应，schema 中包含机器可读的 code 字段');
+  }
+
+  // D5: Schema richness
+  {
+    const checks = [];
+    let total = 0, pass = 0;
+    for (const [name, schema] of Object.entries(schemas)) {
+      const props = schema.properties || {};
+      const propNames = Object.keys(props);
+      const allHaveDesc = propNames.every(p => props[p].description && props[p].description.length > 3);
+      const allHaveType = propNames.every(p => props[p].type || props[p].$ref);
+      const hasRequired = !!(schema.required && schema.required.length > 0);
+      const score = (allHaveDesc ? 1 : 0) + (allHaveType ? 1 : 0) + (hasRequired ? 1 : 0);
+      checks.push({ label: `Schema: ${name}`, status: score >= 3 ? 'pass' : (score >= 1 ? 'partial' : 'fail'), detail: `属性数:${propNames.length} 类型:${allHaveType?'✓':'✗'} 描述:${allHaveDesc?'✓':'✗'} required:${hasRequired?'✓':'✗'}` });
+      total++; pass += score / 3;
+    }
+    if (total === 0) { total = 1; pass = 0.5; checks.push({ label: '未定义 components/schemas', status: 'partial', detail: '建议在 components/schemas 中复用 schema 定义' }); }
+    results.d5 = { score: pass / total, checks, issues: [], recommendations: [] };
+    if (pass / total < 0.7) results.d5.recommendations.push('为每个 Schema 属性添加 type、description 和 example，并标注 required 字段');
+  }
+
+  // D6: Idempotency & side-effect annotation
+  {
+    const checks = [];
+    let total = 0, pass = 0;
+    for (const { path, method, op } of ops) {
+      if (['get', 'head', 'options'].includes(method)) {
+        // Should be safe/idempotent - check description hints
+        const desc = (op.description || '') + (op.summary || '');
+        const mentionsSideEffect = /write|创|建|更新|删|发送|trigger/i.test(desc);
+        const label = `${method.toUpperCase()} ${path} — 只读方法`;
+        checks.push({ label, status: !mentionsSideEffect ? 'pass' : 'partial', detail: !mentionsSideEffect ? '✓ GET 接口，符合幂等性预期' : '注意：描述中提及写操作，建议改用 POST/PUT' });
+        total++; pass += !mentionsSideEffect ? 1 : 0.5;
+      } else {
+        const hasDesc = !!(op.description && op.description.length > 10);
+        checks.push({ label: `${method.toUpperCase()} ${path} — 副作用说明`, status: hasDesc ? 'pass' : 'partial', detail: hasDesc ? '✓ description 描述了操作效果' : '建议在 description 中说明该操作的副作用和幂等性' });
+        total++; pass += hasDesc ? 1 : 0.5;
+      }
+    }
+    results.d6 = { score: total > 0 ? pass / total : 0.8, checks, issues: [], recommendations: [] };
+  }
+
+  // D7: Auth & security
+  {
+    const checks = [];
+    let total = 0, pass = 0;
+    const globalSecurity = !!(spec.security && spec.security.length > 0);
+    const hasSecuritySchemes = !!(spec.components && spec.components.securitySchemes && Object.keys(spec.components.securitySchemes).length > 0);
+    checks.push({ label: 'securitySchemes 定义', status: hasSecuritySchemes ? 'pass' : 'fail', detail: hasSecuritySchemes ? '✓ 定义了认证方案: ' + Object.keys(spec.components.securitySchemes).join(', ') : '缺少 components.securitySchemes 定义' });
+    checks.push({ label: '全局 security 声明', status: globalSecurity ? 'pass' : 'partial', detail: globalSecurity ? '✓ 已声明全局 security' : '建议在根级别声明安全要求' });
+    total += 2; pass += (hasSecuritySchemes ? 1 : 0) + (globalSecurity ? 1 : 0);
+    // Per-op check
+    for (const { path, method, op } of ops) {
+      if (['get'].includes(method)) continue; // skip read ops
+      const opSecurity = op.security !== undefined;
+      checks.push({ label: `${method.toUpperCase()} ${path} — auth`, status: (opSecurity || globalSecurity) ? 'pass' : 'partial', detail: (opSecurity || globalSecurity) ? '✓' : '建议为写操作显式声明 security' });
+      total++; pass += (opSecurity || globalSecurity) ? 1 : 0.5;
+    }
+    results.d7 = { score: total > 0 ? pass / total : 0, checks, issues: [], recommendations: [] };
+    if (!hasSecuritySchemes) results.d7.issues.push('未定义 securitySchemes，LLM 无法理解认证方式');
+    results.d7.recommendations.push('定义 ApiKey / OAuth2 / Bearer Token 认证方案，并为敏感接口显式声明 security');
+  }
+
+  // D8: Discoverability & examples
+  {
+    const checks = [];
+    let total = 0, pass = 0;
+    // examples in schemas
+    for (const [name, schema] of Object.entries(schemas)) {
+      const hasExample = schema.example !== undefined || schema['x-examples'] !== undefined;
+      checks.push({ label: `Schema ${name} — example`, status: hasExample ? 'pass' : 'partial', detail: hasExample ? '✓ 有示例值' : '建议添加 example 帮助 LLM 生成正确格式' });
+      total++; pass += hasExample ? 1 : 0.3;
+    }
+    // tags
+    const hasTags = !!(spec.tags && spec.tags.length > 0);
+    checks.push({ label: 'tags 分组', status: hasTags ? 'pass' : 'partial', detail: hasTags ? '✓ ' + spec.tags.map(t=>t.name).join(', ') : '建议使用 tags 对接口分组，便于 LLM 理解功能模块' });
+    total++; pass += hasTags ? 1 : 0.3;
+    // external docs
+    const hasExternalDocs = !!spec.externalDocs;
+    checks.push({ label: 'externalDocs', status: hasExternalDocs ? 'pass' : 'partial', detail: hasExternalDocs ? '✓ ' + spec.externalDocs.url : '可选：指向详细文档' });
+    total++; pass += hasExternalDocs ? 1 : 0.5;
+    if (total === 0) { total = 1; pass = 0.3; }
+    results.d8 = { score: pass / total, checks, issues: [], recommendations: [] };
+    if (pass / total < 0.6) results.d8.recommendations.push('为所有 Schema 添加 example，使用 tags 分组接口，显著提升 LLM 调用准确率');
+  }
+
+  // Compute overall
+  let totalWeight = 0, weightedSum = 0;
+  for (const d of DIMENSIONS) {
+    totalWeight += d.weight;
+    weightedSum += (results[d.key].score || 0) * d.weight;
+  }
+  const overall = weightedSum / totalWeight;
+
+  return { overall, results };
+}
+
+function getGrade(score) {
+  if (score >= 0.85) return { grade: 'A', name: '就绪', color: 'var(--grade-a)' };
+  if (score >= 0.70) return { grade: 'B', name: '可用', color: 'var(--grade-b)' };
+  if (score >= 0.50) return { grade: 'C', name: '脆弱', color: 'var(--grade-c)' };
+  return { grade: 'D', name: '不可用', color: 'var(--grade-d)' };
+}
+
+function scoreColor(score) {
+  if (score >= 0.8) return 'var(--pass)';
+  if (score >= 0.6) return 'var(--partial)';
+  return 'var(--fail)';
+}
+
+function statusIcon(status) {
+  if (status === 'pass') return '<i class="bi bi-check-circle-fill chk-icon chk-pass"></i>';
+  if (status === 'partial') return '<i class="bi bi-dash-circle-fill chk-icon chk-partial"></i>';
+  return '<i class="bi bi-x-circle-fill chk-icon chk-fail"></i>';
+}
+
+let radarChart = null;
+
+function renderResults(overall, dimResults) {
+  const gInfo = getGrade(overall);
+  document.getElementById('res-score').textContent = Math.round(overall * 100);
+  document.getElementById('res-score').style.color = gInfo.color;
+  document.getElementById('res-grade').textContent = gInfo.grade;
+  document.getElementById('res-grade').className = 'grade grade-' + gInfo.grade;
+  document.getElementById('res-grade-name').textContent = gInfo.name;
+
+  // Dim summary
+  const summaryEl = document.getElementById('dim-summary');
+  summaryEl.innerHTML = DIMENSIONS.map(d => {
+    const r = dimResults[d.key];
+    const s = Math.round(r.score * 100);
+    const c = scoreColor(r.score);
+    return `<div class="flex-between" style="padding:5px 0;border-bottom:1px solid var(--border-soft)">
+      <span style="font-size:13px">${d.name_zh}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="bar-sm"><div class="bar-fill" style="width:${s}%;background:${c}"></div></div>
+        <span style="font-family:var(--mono);font-size:13px;color:${c};min-width:30px;text-align:right">${s}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Radar chart
+  const ctx = document.getElementById('res-radar').getContext('2d');
+  if (radarChart) radarChart.destroy();
+  radarChart = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: DIMENSIONS.map(d => d.name_zh.substring(0, 6)),
+      datasets: [{
+        data: DIMENSIONS.map(d => Math.round(dimResults[d.key].score * 100)),
+        backgroundColor: 'rgba(99,102,241,.2)',
+        borderColor: 'rgba(99,102,241,.8)',
+        pointBackgroundColor: '#6366f1',
+        borderWidth: 2,
+        pointRadius: 3,
+      }]
+    },
+    options: {
+      responsive: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        r: {
+          min: 0, max: 100,
+          ticks: { display: false, stepSize: 25 },
+          grid: { color: 'rgba(42,42,62,.8)' },
+          angleLines: { color: 'rgba(42,42,62,.8)' },
+          pointLabels: { color: '#94a3b8', font: { size: 10, family: 'Noto Sans SC' } }
+        }
+      }
+    }
+  });
+
+  // Dim details
+  const detailsEl = document.getElementById('dim-details');
+  detailsEl.innerHTML = DIMENSIONS.map((d, i) => {
+    const r = dimResults[d.key];
+    const s = Math.round(r.score * 100);
+    const c = scoreColor(r.score);
+    const checks = r.checks.map(ck =>
+      `<div class="chk">${statusIcon(ck.status)}<div><span style="font-size:13px">${ck.label}</span>${ck.detail && ck.detail !== '✓' ? `<div style="font-size:11px;color:var(--text-3);margin-top:2px">${ck.detail}</div>` : ''}</div></div>`
+    ).join('');
+    const issues = r.issues.map(iss => `<div class="issue-pill"><i class="bi bi-exclamation-triangle-fill" style="margin-top:1px;flex-shrink:0"></i>${iss}</div>`).join('');
+    const recs = r.recommendations.map(rec => `<div class="rec-pill"><i class="bi bi-lightbulb-fill" style="margin-top:1px;flex-shrink:0"></i>${rec}</div>`).join('');
+    return `<div class="dim-row">
+      <div class="dim-row-header">
+        <span class="layer-badge">${d.layer}</span>
+        <span class="dim-name" style="margin-left:10px">${d.name_zh}</span>
+        <span class="dim-score" style="color:${c}">${s}</span>
+        <div class="bar-sm"><div class="bar-fill" style="width:${s}%;background:${c}"></div></div>
+        <i class="bi bi-chevron-down toggle-icon" style="margin-left:8px"></i>
+      </div>
+      <div class="dim-body">
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:8px;font-family:var(--mono)">权重: ${d.weight}/66 (${Math.round(d.weight/66*100)}%)</div>
+        ${checks}
+        ${issues ? '<div style="margin-top:10px">' + issues + '</div>' : ''}
+        ${recs ? '<div style="margin-top:8px">' + recs + '</div>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('upload-panel').style.display = 'none';
+  document.querySelectorAll('.g3.mb-4, .card[style*="bg-raised"]').forEach(el => el.style.display = 'none');
+  document.getElementById('results-panel').style.display = 'block';
+}
+
+function runEval() {
+  const text = document.getElementById('spec-input').value.trim();
+  if (!text) { alert('请先上传文件或粘贴 OpenAPI 规范内容'); return; }
+  let spec;
+  try {
+    spec = jsyaml.load(text);
+  } catch(e) {
+    try { spec = JSON.parse(text); } catch(e2) {
+      alert('解析失败：' + e.message); return;
+    }
+  }
+  if (!spec || !spec.paths) {
+    alert('规范格式错误：未找到 paths 字段，请确认这是有效的 OpenAPI 规范');
+    return;
+  }
+  const { overall, results } = evalSpec(spec);
+  renderResults(overall, results);
+}
+
+function resetEval() {
+  document.getElementById('results-panel').style.display = 'none';
+  document.getElementById('upload-panel').style.display = 'block';
+  document.querySelectorAll('.g3.mb-4, .card[style*="bg-raised"]').forEach(el => el.style.display = '');
+  document.getElementById('spec-input').value = '';
+  if (radarChart) { radarChart.destroy(); radarChart = null; }
+}
+
+function loadDemo() {
+  document.getElementById('spec-input').value = DEMO_SPEC;
+}
+
+// File drag & drop
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--accent)'; dropZone.style.background = 'rgba(99,102,241,.05)'; });
+dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var(--border)'; dropZone.style.background = ''; });
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.style.borderColor = 'var(--border)'; dropZone.style.background = '';
+  const file = e.dataTransfer.files[0];
+  if (file) readFile(file);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) readFile(e.target.files[0]); });
+
+function readFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('spec-input').value = ev.target.result;
+    dropZone.querySelector('div').textContent = '✓ ' + file.name;
+  };
+  reader.readAsText(file);
+}
+</script>
 {% endblock %}

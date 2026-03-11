@@ -6,110 +6,134 @@
 {% if is_demo %}
 <div class="demo-banner">
   <i class="bi bi-info-circle-fill"></i>
-  演示数据 — Code Review Assistant Skill（模拟评估结果）
+  演示数据 — Code Review Assistant Skill
+  <a href="/run-eval" style="color:#fcd34d;font-weight:600;margin-left:6px">上传真实 spec →</a>
 </div>
 {% endif %}
 
 <!-- Header -->
-<div class="row g-3 mb-4">
-  <div class="col-md-4">
-    <div class="score-card text-center">
-      <div class="text-muted" style="font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Skill Quality Score</div>
-      <div class="score-number" style="color:{{ overall_grade.color }}">{{ "%.0f"|format(report.overall_score * 100) }}<span style="font-size:22px;color:#94a3b8">%</span></div>
-      <div style="margin-top:8px">
-        <span class="grade-badge" style="background:{{ overall_grade.bg }};color:{{ overall_grade.color }};">
-          Grade {{ overall_grade.grade }} · {{ overall_grade.label }}
-        </span>
-      </div>
-      <div class="text-muted mt-2" style="font-size:12px">加权综合 5 维度</div>
+<div class="g12 mb-4">
+  <div class="card" style="text-align:center">
+    <div class="card-title">Skill Quality Score</div>
+    <div class="score-big" style="color:{{ overall_grade.color }}">{{ "%.0f"|format(report.overall_score * 100) }}<span style="font-size:20px;color:var(--text-3)">分</span></div>
+    <div style="margin-top:10px">
+      <span class="grade grade-{{ overall_grade.grade }}">{{ overall_grade.grade }} · {{ overall_grade.label }}</span>
     </div>
+    <div style="font-size:12px;color:var(--text-3);margin-top:8px">加权综合 5 维度</div>
+    <canvas id="skillBarChart" height="140" style="margin-top:16px"></canvas>
   </div>
-  <div class="col-md-8">
-    <div class="score-card h-100">
-      {% set skill_info = report.get('skill_info', {}) %}
-      <div class="fw-semibold mb-3">Skill 信息</div>
-      <div class="row g-2">
-        <div class="col-sm-6"><span class="text-muted" style="font-size:12px">Name</span><div class="fw-semibold" style="font-size:14px">{{ skill_info.get('name', '—') }}</div></div>
-        <div class="col-sm-6"><span class="text-muted" style="font-size:12px">File</span><div class="fw-semibold" style="font-size:14px;font-family:'JetBrains Mono',monospace">{{ skill_info.get('file', '—') }}</div></div>
-        <div class="col-sm-12"><span class="text-muted" style="font-size:12px">Description</span><div class="fw-semibold" style="font-size:14px">{{ skill_info.get('description', '—') }}</div></div>
+  <div class="card">
+    {% set skill_info = report.get('skill_info', {}) %}
+    <div class="card-title">Skill 信息</div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;color:var(--text-3)">名称</div>
+      <div style="font-size:14px;font-weight:600;margin-top:3px">{{ skill_info.get('name', '—') }}</div>
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;color:var(--text-3)">文件</div>
+      <div class="mono" style="font-size:13px;font-weight:600;margin-top:3px;color:var(--accent-h)">{{ skill_info.get('file', '—') }}</div>
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;color:var(--text-3)">描述</div>
+      <div style="font-size:13px;color:var(--text-2);margin-top:3px">{{ skill_info.get('description', '—') }}</div>
+    </div>
+    <hr class="dim-sep">
+    <div class="card-title" style="margin-bottom:8px">维度得分</div>
+    {% for dim in dimensions %}
+    {% set score_pct = (dim.score * 100)|int %}
+    {% set bar_c = 'var(--pass)' if dim.score >= 0.85 else ('var(--partial)' if dim.score >= 0.6 else 'var(--fail)') %}
+    <div class="flex-between mb-2">
+      <span style="font-size:13px;color:var(--text-2)">{{ dim.name_zh if dim.name_zh else dim.name }}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="bar-sm"><div class="bar-fill" style="width:{{ score_pct }}%;background:{{ bar_c }}"></div></div>
+        <span class="mono" style="font-size:12px;min-width:28px;text-align:right">{{ score_pct }}</span>
       </div>
     </div>
+    {% endfor %}
   </div>
-</div>
-
-<!-- Bar chart -->
-<div class="score-card mb-4">
-  <div class="fw-semibold mb-3">5 维度评分</div>
-  <canvas id="skillBarChart" height="80"></canvas>
 </div>
 
 <!-- Dimension details -->
-<div class="fw-semibold mb-2" style="font-size:15px">维度详情</div>
+<div style="font-size:15px;font-weight:600;margin-bottom:12px">
+  维度详情
+  <span style="font-size:12px;color:var(--text-3);font-weight:400;margin-left:6px">点击展开检查项</span>
+</div>
+
+{% set skill_layer_map = {
+  '触发意图识别': '静态分析',
+  '指令结构清晰度': '静态分析',
+  '上下文利用能力': '静态分析',
+  '输出规范性': '静态分析',
+  '错误处理能力': '静态分析'
+} %}
+
 {% for dim in dimensions %}
-<div class="dim-row mb-2">
+{% set dim_name = dim.name_zh if dim.name_zh else dim.name %}
+{% set layer = skill_layer_map.get(dim_name, '静态分析') %}
+{% set score_pct = (dim.score * 100)|int %}
+{% set bar_color = 'var(--pass)' if dim.score >= 0.85 else ('var(--partial)' if dim.score >= 0.6 else 'var(--fail)') %}
+<div class="dim-row">
   <div class="dim-row-header">
-    <div>
-      <div class="dim-name">{{ dim.name_zh if dim.name_zh else dim.name }}</div>
-      <div class="text-muted" style="font-size:12px">{{ dim.description if dim.description else '' }}</div>
-    </div>
-    <div class="d-flex align-items-center gap-3 ms-3" style="flex-shrink:0">
-      <div class="progress-sm" style="width:80px">
-        <div class="progress-sm-fill" style="width:{{ (dim.score * 100)|int }}%;background:{% if dim.score >= 0.85 %}#22c55e{% elif dim.score >= 0.70 %}#eab308{% elif dim.score >= 0.50 %}#f97316{% else %}#ef4444{% endif %}"></div>
-      </div>
-      <div class="dim-score-text" style="color:{{ dim.grade_info.color }}">{{ "%.0f"|format(dim.score * 100) }}%</div>
-      <span class="grade-badge" style="background:{{ dim.grade_info.bg }};color:{{ dim.grade_info.color }};font-size:12px">{{ dim.grade_info.grade }}</span>
-      <i class="bi bi-chevron-down toggle-icon text-muted" style="transition:transform .2s"></i>
-    </div>
+    <span class="layer-badge">{{ layer }}</span>
+    <span class="dim-name" style="margin-left:10px">{{ dim_name }}</span>
+    <button data-weight-toggle="sw-{{ loop.index }}" class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 7px;margin-right:8px">权重</button>
+    <span class="dim-score" style="color:{{ bar_color }}">{{ score_pct }}</span>
+    <div class="bar-sm"><div class="bar-fill" style="width:{{ score_pct }}%;background:{{ bar_color }}"></div></div>
+    <i class="bi bi-chevron-down toggle-icon" style="margin-left:8px"></i>
+  </div>
+  <div class="weight-detail" id="sw-{{ loop.index }}">
+    权重: {{ dim.weight if dim.weight is defined else '—' }}/{{ report.get('total_weight', 42) }} ·
+    占比: {{ ((dim.weight / report.get('total_weight', 42)) * 100)|int if dim.weight is defined else '—' }}% ·
+    检测层: {{ layer }} ·
+    依据: Skill Creator 规范 + AI-Ready 框架 v2
   </div>
   <div class="dim-body">
+    {% if dim.get('description') %}
+    <div style="font-size:13px;color:var(--text-2);margin-bottom:12px">{{ dim.description }}</div>
+    {% endif %}
     {% if dim.get('checks') %}
-    <div class="mb-3">
-      <div class="text-muted mb-2" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">检查项</div>
-      {% for chk in dim.checks %}
-      <div class="check-item">
-        <i class="bi {% if chk.result == 'pass' %}bi-check-circle-fill check-pass{% elif chk.result == 'partial' %}bi-dash-circle-fill check-partial{% else %}bi-x-circle-fill check-fail{% endif %} mt-1" style="flex-shrink:0"></i>
-        <div>
-          <div style="font-weight:500">{{ chk.name }}</div>
-          {% if chk.get('detail') %}<div class="text-muted" style="font-size:12px">{{ chk.detail }}</div>{% endif %}
-        </div>
-        <div class="ms-auto" style="flex-shrink:0">
-          {% if chk.result == 'pass' %}<span class="badge" style="background:#f0fdf4;color:#16a34a">通过</span>
-          {% elif chk.result == 'partial' %}<span class="badge" style="background:#fefce8;color:#a16207">部分</span>
-          {% else %}<span class="badge" style="background:#fef2f2;color:#dc2626">不通过</span>{% endif %}
-        </div>
+    <div class="card-title" style="margin-bottom:6px">检查项</div>
+    {% for chk in dim.checks %}
+    <div class="chk">
+      {% if chk.result == 'pass' %}<i class="bi bi-check-circle-fill chk-icon chk-pass"></i>
+      {% elif chk.result == 'partial' %}<i class="bi bi-dash-circle-fill chk-icon chk-partial"></i>
+      {% else %}<i class="bi bi-x-circle-fill chk-icon chk-fail"></i>{% endif %}
+      <div>
+        <div style="font-size:13px;font-weight:500">{{ chk.name }}</div>
+        {% if chk.get('detail') %}<div style="font-size:12px;color:var(--text-3);margin-top:2px">{{ chk.detail }}</div>{% endif %}
       </div>
-      {% endfor %}
+      <div style="margin-left:auto;flex-shrink:0">
+        {% if chk.result == 'pass' %}<span style="font-size:11px;background:rgba(34,197,94,.15);color:var(--pass);padding:2px 7px;border-radius:4px">通过</span>
+        {% elif chk.result == 'partial' %}<span style="font-size:11px;background:rgba(245,158,11,.15);color:var(--partial);padding:2px 7px;border-radius:4px">部分</span>
+        {% else %}<span style="font-size:11px;background:rgba(239,68,68,.15);color:var(--fail);padding:2px 7px;border-radius:4px">不通过</span>{% endif %}
+      </div>
     </div>
+    {% endfor %}
     {% endif %}
     {% if dim.get('trigger_results') %}
-    <div class="mb-3">
-      <div class="text-muted mb-2" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">触发测试结果</div>
-      {% for tr in dim.trigger_results[:6] %}
-      <div class="check-item">
-        <i class="bi {% if tr.get('correct') %}bi-check-circle-fill check-pass{% else %}bi-x-circle-fill check-fail{% endif %} mt-1" style="flex-shrink:0"></i>
-        <div>
-          <div style="font-size:12px">{{ tr.get('query', '') }}</div>
-          <div class="text-muted" style="font-size:11px">期望: {{ 'Should Trigger' if tr.get('should_trigger') else 'Should NOT Trigger' }}</div>
-        </div>
+    <div class="card-title" style="margin-top:12px;margin-bottom:6px">触发测试</div>
+    {% for tr in dim.trigger_results[:6] %}
+    <div class="chk">
+      {% if tr.get('correct') %}<i class="bi bi-check-circle-fill chk-icon chk-pass"></i>
+      {% else %}<i class="bi bi-x-circle-fill chk-icon chk-fail"></i>{% endif %}
+      <div>
+        <div style="font-size:13px">{{ tr.get('query', '') }}</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:2px">期望: {{ '应触发' if tr.get('should_trigger') else '不应触发' }}</div>
       </div>
-      {% endfor %}
     </div>
+    {% endfor %}
     {% endif %}
     {% if dim.get('issues') %}
-    <div class="mb-3">
-      <div class="text-muted mb-2" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">发现的问题</div>
-      {% for issue in dim.issues %}
-      <div class="issue-pill"><i class="bi bi-exclamation-triangle-fill mt-1" style="flex-shrink:0"></i>{{ issue }}</div>
-      {% endfor %}
-    </div>
+    <div class="card-title" style="margin-top:12px;margin-bottom:6px">发现的问题</div>
+    {% for issue in dim.issues %}
+    <div class="issue-pill"><i class="bi bi-exclamation-triangle-fill" style="margin-top:1px;flex-shrink:0"></i>{{ issue }}</div>
+    {% endfor %}
     {% endif %}
     {% if dim.get('recommendations') %}
-    <div>
-      <div class="text-muted mb-2" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">改进建议</div>
-      {% for rec in dim.recommendations %}
-      <div class="rec-pill"><i class="bi bi-lightbulb-fill mt-1" style="flex-shrink:0"></i>{{ rec }}</div>
-      {% endfor %}
-    </div>
+    <div class="card-title" style="margin-top:12px;margin-bottom:6px">改进建议</div>
+    {% for rec in dim.recommendations %}
+    <div class="rec-pill"><i class="bi bi-lightbulb-fill" style="margin-top:1px;flex-shrink:0"></i>{{ rec }}</div>
+    {% endfor %}
     {% endif %}
   </div>
 </div>
@@ -121,26 +145,21 @@
 const dimLabels = {{ dimensions|map(attribute='name_zh')|list|tojson }};
 const dimScores = {{ dimensions|map(attribute='score')|list|tojson }};
 const dimScoresPct = dimScores.map(s => Math.round(s * 100));
-const bgColors = dimScoresPct.map(s => s >= 85 ? 'rgba(34,197,94,0.8)' : s >= 70 ? 'rgba(234,179,8,0.8)' : s >= 50 ? 'rgba(249,115,22,0.8)' : 'rgba(239,68,68,0.8)');
+const bgColors = dimScoresPct.map(s => s >= 85 ? 'rgba(34,197,94,.75)' : s >= 60 ? 'rgba(245,158,11,.75)' : 'rgba(239,68,68,.75)');
 
 new Chart(document.getElementById('skillBarChart'), {
   type: 'bar',
   data: {
     labels: dimLabels,
-    datasets: [{
-      label: 'Score',
-      data: dimScoresPct,
-      backgroundColor: bgColors,
-      borderRadius: 6,
-    }]
+    datasets: [{ label: 'Score', data: dimScoresPct, backgroundColor: bgColors, borderRadius: 5 }]
   },
   options: {
     responsive: true,
-    scales: {
-      y: { min: 0, max: 100, grid: { color: '#f1f5f9' }, ticks: { callback: v => v + '%' } },
-      x: { grid: { display: false } },
-    },
     plugins: { legend: { display: false } },
+    scales: {
+      y: { min: 0, max: 100, grid: { color: 'rgba(42,42,62,.6)' }, ticks: { color: '#64748b', font: { size: 11 }, callback: v => v } },
+      x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10, family: 'Noto Sans SC' } } },
+    },
   }
 });
 </script>
