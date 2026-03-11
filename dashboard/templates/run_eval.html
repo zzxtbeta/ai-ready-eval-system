@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}在线评估 — AI-Ready Eval{% endblock %}
+{% block page_title %}在线静态评估{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    {% if error %}
+    <div class="alert alert-danger py-2 px-3 mb-3" style="font-size:13px">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ error }}
+    </div>
+    {% endif %}
+
+    <div class="score-card">
+      <div class="fw-semibold mb-1" style="font-size:16px">上传 OpenAPI 规范</div>
+      <div class="text-muted mb-4" style="font-size:13px">支持 YAML 或 JSON 格式的 OpenAPI 3.x / Swagger 2.0 规范文件，立即获得 AI-Readiness 评分。</div>
+
+      <form method="POST" enctype="multipart/form-data">
+        <!-- File Upload -->
+        <div class="mb-4">
+          <label class="form-label fw-semibold" style="font-size:14px">方式一：上传文件</label>
+          <input type="file" class="form-control" name="spec_file" accept=".yaml,.yml,.json"
+                 style="font-size:13px">
+          <div class="form-text">接受 .yaml / .yml / .json 格式</div>
+        </div>
+
+        <div class="d-flex align-items-center gap-3 mb-4">
+          <hr class="flex-grow-1"><span class="text-muted" style="font-size:13px">或</span><hr class="flex-grow-1">
+        </div>
+
+        <!-- Paste Area -->
+        <div class="mb-4">
+          <label class="form-label fw-semibold" style="font-size:14px">方式二：粘贴内容</label>
+          <textarea name="spec_text" class="form-control font-monospace" rows="14"
+                    placeholder="openapi: '3.0.0'&#10;info:&#10;  title: My API&#10;  version: 1.0.0&#10;paths:&#10;  /users:&#10;    get:&#10;      summary: List users&#10;      ..."
+                    style="font-size:12px;resize:vertical"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary px-4">
+          <i class="bi bi-play-fill me-2"></i>开始静态分析
+        </button>
+        <span class="text-muted ms-3" style="font-size:12px">预计耗时 &lt; 3 秒</span>
+      </form>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="row g-3 mt-2">
+      <div class="col-md-4">
+        <div class="score-card text-center py-3">
+          <i class="bi bi-shield-check" style="font-size:24px;color:#3b82f6"></i>
+          <div class="fw-semibold mt-2" style="font-size:13px">8 个评估维度</div>
+          <div class="text-muted" style="font-size:12px">语义描述、响应大小、错误质量等</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="score-card text-center py-3">
+          <i class="bi bi-lock" style="font-size:24px;color:#22c55e"></i>
+          <div class="fw-semibold mt-2" style="font-size:13px">本地分析</div>
+          <div class="text-muted" style="font-size:12px">规范内容不会存储或上传第三方</div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="score-card text-center py-3">
+          <i class="bi bi-lightning-charge" style="font-size:24px;color:#eab308"></i>
+          <div class="fw-semibold mt-2" style="font-size:13px">即时结果</div>
+          <div class="text-muted" style="font-size:12px">秒级静态分析，无需 LLM Key</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CLI hint -->
+    <div class="score-card mt-3" style="background:#0f172a;color:#e2e8f0;">
+      <div class="fw-semibold mb-2" style="font-size:13px;color:#94a3b8">💻 CLI 深度评估（支持动态探针 + LLM Agent Trial）</div>
+      <pre style="font-size:12px;color:#7dd3fc;margin:0">pip install -r requirements.txt
+python main.py eval-api --spec path/to/openapi.yaml --base-url https://api.example.com
+python main.py eval-skill --skill path/to/SKILL.md</pre>
+    </div>
+  </div>
+</div>
+{% endblock %}

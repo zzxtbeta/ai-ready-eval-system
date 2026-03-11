@@ -1,0 +1,83 @@
+# AI-Ready Eval System 配置文件
+# 复制此文件并根据你的环境修改
+
+# ───────────────────────────────────────────
+# API 评估模块配置
+# ───────────────────────────────────────────
+api_eval:
+  # OpenAPI spec 路径（本地文件或 URL）
+  openapi_spec_path: "examples/sample_api_spec.yaml"
+  
+  # API 实际 base URL（用于动态探测和 Agent 试用）
+  # 留空则只做静态分析
+  base_url: ""
+  
+  # 动态探测配置
+  probe:
+    timeout_seconds: 10       # 每次请求超时
+    max_endpoints: 20         # 最多探测多少个端点（避免过度请求）
+    test_auth_header: ""      # 测试用认证头，如 "Bearer test-token"
+  
+  # 流量韧性测试配置
+  resilience:
+    burst_qps: 10             # 突发请求速率
+    burst_count: 10           # 突发请求总数
+    enabled: false            # 默认关闭，避免误伤生产 API
+
+# ───────────────────────────────────────────
+# Skill 评估模块配置
+# ───────────────────────────────────────────
+skill_eval:
+  # 要评估的 Skill 文件路径列表
+  skill_paths:
+    - "examples/sample_skill.md"
+  
+  # 触发评估配置
+  trigger_eval:
+    eval_set_path: ""         # 自定义 eval 集路径（留空使用自动生成）
+    min_eval_count: 20        # 最少 eval 条目数
+  
+  # 功能评估配置
+  functional_eval:
+    test_prompts_path: ""     # 自定义测试 prompt 路径
+    baseline_model: "gpt-4o-mini"  # 基线对比模型
+
+# ───────────────────────────────────────────
+# LLM 配置（用于 Agent 试用、触发评估、功能评估）
+# ───────────────────────────────────────────
+llm:
+  provider: "openai"          # 支持：openai | anthropic | azure
+  model: "gpt-4o"
+  api_key: "${OPENAI_API_KEY}" # 从环境变量读取
+  
+  # 备用配置（Anthropic）
+  # provider: "anthropic"
+  # model: "claude-3-5-sonnet-20241022"
+  # api_key: "${ANTHROPIC_API_KEY}"
+  
+  temperature: 0.0            # 评估用低温度保证稳定性
+  max_tokens: 4096
+
+# ───────────────────────────────────────────
+# 报告配置
+# ───────────────────────────────────────────
+reporting:
+  output_dir: "reports"
+  formats:
+    - json                    # 供 CI/CD 消费
+    - html                    # 独立可视化报告
+  
+  # CI/CD 质量门禁阈值
+  gates:
+    min_api_score: 0.70       # < 0.70 则报 WARNING
+    min_skill_score: 0.70
+    fail_on_d_grade: true     # D 等级直接 FAIL
+
+# ───────────────────────────────────────────
+# 仪表盘配置
+# ───────────────────────────────────────────
+dashboard:
+  host: "0.0.0.0"
+  port: 5000
+  debug: false
+  demo_mode: true             # true = 展示示例数据

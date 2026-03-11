@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}API 评估详情 — AI-Ready Eval{% endblock %}
+{% block page_title %}API AI-Readiness 评估{% endblock %}
+
+{% block content %}
+{% if is_demo %}
+<div class="demo-banner">
+  <i class="bi bi-info-circle-fill"></i>
+  演示数据 — TaskMaster API（模拟评估结果）<a href="/run-eval" class="ms-2 fw-semibold text-decoration-none" style="color:#92400e">上传真实 spec →</a>
+</div>
+{% endif %}
+
+{% if inline_mode is defined and inline_mode %}
+<div class="alert alert-success py-2 px-3 mb-3" style="font-size:13px">
+  <i class="bi bi-check-circle-fill me-2"></i>在线静态分析完成 — 结果如下
+</div>
+{% endif %}
+
+<!-- Header -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="score-card text-center">
+      <div class="text-muted" style="font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">AI-Readiness Score</div>
+      <div class="score-number" style="color:{{ overall_grade.color }}">{{ "%.0f"|format(report.overall_score * 100) }}<span style="font-size:22px;color:#94a3b8">%</span></div>
+      <div style="margin-top:8px">
+        <span class="grade-badge" style="background:{{ overall_grade.bg }};color:{{ overall_grade.color }};">
+          Grade {{ overall_grade.grade }} · {{ overall_grade.label }}
+        </span>
+      </div>
+      <div class="text-muted mt-2" style="font-size:12px">加权综合 8 维度</div>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="score-card h-100">
+      {% set spec_info = report.get('spec_info', {}) %}
+      <div class="fw-semibold mb-3">规范信息</div>
+      <div class="row g-2">
+        <div class="col-sm-6"><span class="text-muted" style="font-size:12px">Title</span><div class="fw-semibold" style="font-size:14px">{{ spec_info.get('title', '—') }}</div></div>
+        <div class="col-sm-6"><span class="text-muted" style="font-size:12px">Version</span><div class="fw-semibold" style="font-size:14px">{{ spec_info.get('version', '—') }}</div></div>
+        <div class="col-sm-6"><span class="text-muted" style="font-size:12px">Format</span><div class="fw-semibold" style="font-size:14px">{{ spec_info.get('format', 'OpenAPI') }}</div></div>
+        <div class="col-sm-6"><span class="text-muted" style="font-size:12px">Endpoints</span><div class="fw-semibold" style="font-size:14px">{{ spec_info.get('endpoint_count', '—') }}</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Dimensions table -->
+<div class="score-card mb-4">
+  <div class="fw-semibold mb-3">8 维度评分</div>
+  <canvas id="radarChart" height="120" class="mb-3"></canvas>
+</div>
+
+<!-- Dimension details -->
+<div class="fw-semibold mb-2" style="font-size:15px">维度详情 <span class="text-muted fw-normal" style="font-size:13px">（点击展开检查项）</span></div>
+{% for dim in dimensions %}
+<div class="dim-row mb-2">
+  <div class="dim-row-header">
+    <div>
+      <div class="dim-name">{{ dim.name_zh if dim.name_zh else dim.name }}</div>
+      <div class="text-muted" style="font-size:12px">{{ dim.description if dim.description else '' }}</div>
+    </div>
+    <div class="d-flex align-items-center gap-3 ms-3" style="flex-shrink:0">
+      <div class="progress-sm" style="width:80px">
+        <div class="progress-sm-fill" style="width:{{ (dim.score * 100)|int }}%;background:{% if dim.score >= 0.85 %}#22c55e{% elif dim.score >= 0.70 %}#eab308{% elif dim.score >= 0.50 %}#f97316{% else %}#ef4444{% endif %}"></div>
+      </div>
+      <div class="dim-score-text" style="color:{{ dim.grade_info.color }}">{{ "%.0f"|format(dim.score * 100) }}%</div>
+      <span class="grade-badge" style="background:{{ dim.grade_info.bg }};color:{{ dim.grade_info.color }};font-size:12px">{{ dim.grade_info.grade }}</span>
+      <i class="bi bi-chevron-down toggle-icon text-muted" style="transition:transform .2s"></i>
+    </div>
+  </div>
+  <div class="dim-body">
+    {% if dim.get('checks') %}
+    <div class="mb-3">
+      <div class="text-muted mb-2" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">检查项</div>
+      {% for chk in dim.checks %}
+      <div class="check-item">
+        <i class="bi {% if chk.result == 'pass' %}bi-check-circle-fill check-pass{% elif chk.result == 'partial' %}bi-dash-circle-fill check-partial{% else %}bi-x-circle-fill check-fail{% endif %} mt-1" style="flex-shrink:0"></i>
+        <div>
+          <div style="font-weight:500">{{ chk.name }}</div>
+          {% if chk.get('detail') %}<div class="text-muted" style="font-size:12px">{{ chk.detail }}</div>{% endif %}
+        </div>
+        <div class="ms-auto" style="flex-shrink:0">
+          {% if chk.result == 'pass' %}<span class="badge" style="background:#f0fdf4;color:#16a34a">通过</span>
+          {% elif chk.result == 'partial' %}<span class="badge" style="background:#fefce8;color:#a16207">部分</span>
+          {% else %}<span class="badge" style="background:#fef2f2;color:#dc2626">不通过</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if dim.get('issues') %}
+    <div class="mb-3">
+      <div class="text-muted mb-2" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">发现的问题</div>
+      {% for issue in dim.issues %}
+      <div class="issue-pill"><i class="bi bi-exclamation-triangle-fill mt-1" style="flex-shrink:0"></i>{{ issue }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if dim.get('recommendations') %}
+    <div>
+      <div class="text-muted mb-2" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">修复建议</div>
+      {% for rec in dim.recommendations %}
+      <div class="rec-pill"><i class="bi bi-lightbulb-fill mt-1" style="flex-shrink:0"></i>{{ rec }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const dimLabels = {{ dimensions|map(attribute='name_zh')|list|tojson }};
+const dimScores = {{ dimensions|map(attribute='score')|list|tojson }};
+const dimScoresPct = dimScores.map(s => Math.round(s * 100));
+
+new Chart(document.getElementById('radarChart'), {
+  type: 'radar',
+  data: {
+    labels: dimLabels,
+    datasets: [{
+      label: 'AI-Readiness Score',
+      data: dimScoresPct,
+      backgroundColor: 'rgba(59,130,246,0.12)',
+      borderColor: '#3b82f6',
+      pointBackgroundColor: '#3b82f6',
+      pointRadius: 4,
+      borderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true,
+    scales: {
+      r: {
+        min: 0, max: 100,
+        ticks: { stepSize: 25, font: { size: 10 } },
+        pointLabels: { font: { size: 12 } },
+        grid: { color: '#e2e8f0' },
+      }
+    },
+    plugins: { legend: { display: false } },
+  }
+});
+</script>
+{% endblock %}

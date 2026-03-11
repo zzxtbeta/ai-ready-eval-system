@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Skill 评估详情 — AI-Ready Eval{% endblock %}
+{% block page_title %}Skill 质量评估{% endblock %}
+
+{% block content %}
+{% if is_demo %}
+<div class="demo-banner">
+  <i class="bi bi-info-circle-fill"></i>
+  演示数据 — Code Review Assistant Skill（模拟评估结果）
+</div>
+{% endif %}
+
+<!-- Header -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="score-card text-center">
+      <div class="text-muted" style="font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Skill Quality Score</div>
+      <div class="score-number" style="color:{{ overall_grade.color }}">{{ "%.0f"|format(report.overall_score * 100) }}<span style="font-size:22px;color:#94a3b8">%</span></div>
+      <div style="margin-top:8px">
+        <span class="grade-badge" style="background:{{ overall_grade.bg }};color:{{ overall_grade.color }};">
+          Grade {{ overall_grade.grade }} · {{ overall_grade.label }}
+        </span>
+      </div>
+      <div class="text-muted mt-2" style="font-size:12px">加权综合 5 维度</div>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="score-card h-100">
+      {% set skill_info = report.get('skill_info', {}) %}
+      <div class="fw-semibold mb-3">Skill 信息</div>
+      <div class="row g-2">
+        <div class="col-sm-6"><span class="text-muted" style="font-size:12px">Name</span><div class="fw-semibold" style="font-size:14px">{{ skill_info.get('name', '—') }}</div></div>
+        <div class="col-sm-6"><span class="text-muted" style="font-size:12px">File</span><div class="fw-semibold" style="font-size:14px;font-family:'JetBrains Mono',monospace">{{ skill_info.get('file', '—') }}</div></div>
+        <div class="col-sm-12"><span class="text-muted" style="font-size:12px">Description</span><div class="fw-semibold" style="font-size:14px">{{ skill_info.get('description', '—') }}</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bar chart -->
+<div class="score-card mb-4">
+  <div class="fw-semibold mb-3">5 维度评分</div>
+  <canvas id="skillBarChart" height="80"></canvas>
+</div>
+
+<!-- Dimension details -->
+<div class="fw-semibold mb-2" style="font-size:15px">维度详情</div>
+{% for dim in dimensions %}
+<div class="dim-row mb-2">
+  <div class="dim-row-header">
+    <div>
+      <div class="dim-name">{{ dim.name_zh if dim.name_zh else dim.name }}</div>
+      <div class="text-muted" style="font-size:12px">{{ dim.description if dim.description else '' }}</div>
+    </div>
+    <div class="d-flex align-items-center gap-3 ms-3" style="flex-shrink:0">
+      <div class="progress-sm" style="width:80px">
+        <div class="progress-sm-fill" style="width:{{ (dim.score * 100)|int }}%;background:{% if dim.score >= 0.85 %}#22c55e{% elif dim.score >= 0.70 %}#eab308{% elif dim.score >= 0.50 %}#f97316{% else %}#ef4444{% endif %}"></div>
+      </div>
+      <div class="dim-score-text" style="color:{{ dim.grade_info.color }}">{{ "%.0f"|format(dim.score * 100) }}%</div>
+      <span class="grade-badge" style="background:{{ dim.grade_info.bg }};color:{{ dim.grade_info.color }};font-size:12px">{{ dim.grade_info.grade }}</span>
+      <i class="bi bi-chevron-down toggle-icon text-muted" style="transition:transform .2s"></i>
+    </div>
+  </div>
+  <div class="dim-body">
+    {% if dim.get('checks') %}
+    <div class="mb-3">
+      <div class="text-muted mb-2" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">检查项</div>
+      {% for chk in dim.checks %}
+      <div class="check-item">
+        <i class="bi {% if chk.result == 'pass' %}bi-check-circle-fill check-pass{% elif chk.result == 'partial' %}bi-dash-circle-fill check-partial{% else %}bi-x-circle-fill check-fail{% endif %} mt-1" style="flex-shrink:0"></i>
+        <div>
+          <div style="font-weight:500">{{ chk.name }}</div>
+          {% if chk.get('detail') %}<div class="text-muted" style="font-size:12px">{{ chk.detail }}</div>{% endif %}
+        </div>
+        <div class="ms-auto" style="flex-shrink:0">
+          {% if chk.result == 'pass' %}<span class="badge" style="background:#f0fdf4;color:#16a34a">通过</span>
+          {% elif chk.result == 'partial' %}<span class="badge" style="background:#fefce8;color:#a16207">部分</span>
+          {% else %}<span class="badge" style="background:#fef2f2;color:#dc2626">不通过</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if dim.get('trigger_results') %}
+    <div class="mb-3">
+      <div class="text-muted mb-2" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">触发测试结果</div>
+      {% for tr in dim.trigger_results[:6] %}
+      <div class="check-item">
+        <i class="bi {% if tr.get('correct') %}bi-check-circle-fill check-pass{% else %}bi-x-circle-fill check-fail{% endif %} mt-1" style="flex-shrink:0"></i>
+        <div>
+          <div style="font-size:12px">{{ tr.get('query', '') }}</div>
+          <div class="text-muted" style="font-size:11px">期望: {{ 'Should Trigger' if tr.get('should_trigger') else 'Should NOT Trigger' }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if dim.get('issues') %}
+    <div class="mb-3">
+      <div class="text-muted mb-2" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">发现的问题</div>
+      {% for issue in dim.issues %}
+      <div class="issue-pill"><i class="bi bi-exclamation-triangle-fill mt-1" style="flex-shrink:0"></i>{{ issue }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if dim.get('recommendations') %}
+    <div>
+      <div class="text-muted mb-2" style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">改进建议</div>
+      {% for rec in dim.recommendations %}
+      <div class="rec-pill"><i class="bi bi-lightbulb-fill mt-1" style="flex-shrink:0"></i>{{ rec }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const dimLabels = {{ dimensions|map(attribute='name_zh')|list|tojson }};
+const dimScores = {{ dimensions|map(attribute='score')|list|tojson }};
+const dimScoresPct = dimScores.map(s => Math.round(s * 100));
+const bgColors = dimScoresPct.map(s => s >= 85 ? 'rgba(34,197,94,0.8)' : s >= 70 ? 'rgba(234,179,8,0.8)' : s >= 50 ? 'rgba(249,115,22,0.8)' : 'rgba(239,68,68,0.8)');
+
+new Chart(document.getElementById('skillBarChart'), {
+  type: 'bar',
+  data: {
+    labels: dimLabels,
+    datasets: [{
+      label: 'Score',
+      data: dimScoresPct,
+      backgroundColor: bgColors,
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true,
+    scales: {
+      y: { min: 0, max: 100, grid: { color: '#f1f5f9' }, ticks: { callback: v => v + '%' } },
+      x: { grid: { display: false } },
+    },
+    plugins: { legend: { display: false } },
+  }
+});
+</script>
+{% endblock %}

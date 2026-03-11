@@ -1,0 +1,193 @@
+{
+  "spec_info": {
+    "title": "TaskMaster API",
+    "version": "2.1.0",
+    "format": "OpenAPI 3.0.3",
+    "endpoint_count": 18,
+    "description": "A task management API for creating, assigning, and tracking work items"
+  },
+  "overall_score": 0.748,
+  "grade": "B",
+  "grade_label": "Agent-Usable",
+  "_is_demo": true,
+  "generated_at": "2025-01-15T10:30:00Z",
+  "dimensions": [
+    {
+      "name": "semantic_description",
+      "name_zh": "语义描述质量",
+      "description": "端点/参数/响应字段的描述覆盖率与质量",
+      "score": 0.72,
+      "weight": 3.0,
+      "checks": [
+        {"name": "端点描述覆盖率 ≥80%", "result": "pass", "detail": "16/18 端点有描述 (88.9%)"},
+        {"name": "参数描述覆盖率 ≥70%", "result": "partial", "detail": "34/52 参数有描述 (65.4%)"},
+        {"name": "参数示例覆盖率 ≥50%", "result": "fail", "detail": "仅 12/52 参数有 example 字段 (23.1%)"},
+        {"name": "响应字段描述覆盖率 ≥60%", "result": "partial", "detail": "responses 中 description 字段覆盖率 58%"},
+        {"name": "描述语言质量（非占位文字）", "result": "pass", "detail": "未检测到 'todo', 'fixme' 等占位描述"}
+      ],
+      "issues": [
+        "52 个参数中仅 34 个有描述，缺失率 34.6%",
+        "example 字段严重缺失：仅 23% 参数提供示例值，AI agent 难以推断合法值",
+        "/tasks/{id}/subtasks 端点缺少响应体 schema 描述"
+      ],
+      "recommendations": [
+        "为所有 query/path 参数添加 description + example 字段，重点覆盖枚举参数",
+        "在 OpenAPI components/schemas 中为每个字段添加 description",
+        "对关键枚举参数（如 status, priority）添加 enum 值说明"
+      ]
+    },
+    {
+      "name": "response_sizing",
+      "name_zh": "响应大小控制",
+      "description": "分页设计、字段过滤、大响应防护",
+      "score": 0.65,
+      "weight": 2.5,
+      "checks": [
+        {"name": "列表端点有分页参数", "result": "pass", "detail": "6 个列表端点均支持 page/per_page 参数"},
+        {"name": "分页响应包含 total/next 元数据", "result": "partial", "detail": "有 total 字段，缺少 next/prev 链接 (HATEOAS)"},
+        {"name": "支持字段过滤 (fields 参数)", "result": "fail", "detail": "未找到 fields 或 select 过滤参数"},
+        {"name": "大对象有流式/分块选项", "result": "fail", "detail": "无 streaming 或分块传输相关描述"}
+      ],
+      "issues": [
+        "无字段选择器（fields 参数）：AI agent 每次获取完整对象，增加 token 消耗",
+        "响应未包含 HATEOAS 链接，agent 需要手动构造 URL",
+        "批量导出端点 GET /tasks/export 无大小限制说明"
+      ],
+      "recommendations": [
+        "添加 ?fields=id,name,status 字段过滤参数",
+        "在分页响应中添加 links.next / links.prev 字段",
+        "为导出端点添加 limit 参数和最大记录数说明"
+      ]
+    },
+    {
+      "name": "error_quality",
+      "name_zh": "错误信息质量",
+      "description": "错误响应结构化程度、修复提示、RFC 7807 合规",
+      "score": 0.80,
+      "weight": 2.5,
+      "checks": [
+        {"name": "使用结构化错误格式 (type/title/detail)", "result": "pass", "detail": "错误响应包含 code, message, details 字段"},
+        {"name": "400 错误包含字段级别错误定位", "result": "pass", "detail": "validation 错误返回 field_errors 数组"},
+        {"name": "错误包含 fix_hint 或操作建议", "result": "partial", "detail": "部分错误有 hint 字段，约 60% 覆盖率"},
+        {"name": "定义 429 Too Many Requests 响应", "result": "pass", "detail": "有 429 rate limit 响应定义"},
+        {"name": "RFC 7807 Problem Details 格式", "result": "fail", "detail": "未使用 application/problem+json content type"}
+      ],
+      "issues": [
+        "错误响应未使用 RFC 7807 格式（application/problem+json），影响互操作性",
+        "40% 的错误缺少 fix_hint 字段，agent 无法自动修复"
+      ],
+      "recommendations": [
+        "采用 RFC 7807 错误格式，添加 type URI 标识错误分类",
+        "为所有 4xx 错误添加 fix_hint 字段，说明如何修复请求"
+      ]
+    },
+    {
+      "name": "discoverability",
+      "name_zh": "可发现性",
+      "description": "规范格式合规、MCP 支持、llms.txt、内部一致性",
+      "score": 0.88,
+      "weight": 2.0,
+      "checks": [
+        {"name": "规范格式有效 (OpenAPI 3.x)", "result": "pass", "detail": "OpenAPI 3.0.3 格式有效"},
+        {"name": "存在 servers 字段", "result": "pass", "detail": "定义了 production + staging 两个 server"},
+        {"name": "contact/license 信息完整", "result": "partial", "detail": "有 contact，缺少 license 字段"},
+        {"name": "tags 对端点进行了分组", "result": "pass", "detail": "8 个标签合理分组所有端点"},
+        {"name": "externalDocs 或 llms.txt 存在", "result": "fail", "detail": "未声明 externalDocs 或 llms.txt 路径"}
+      ],
+      "issues": [
+        "未提供 llms.txt 文件路径声明",
+        "缺少 license 字段"
+      ],
+      "recommendations": [
+        "在 info 中添加 x-llms-txt: /llms.txt 扩展字段",
+        "添加 license 字段（如 Apache 2.0 或 MIT）"
+      ]
+    },
+    {
+      "name": "workflow_documentation",
+      "name_zh": "工作流文档",
+      "description": "多步骤流程说明、HATEOAS、状态机文档",
+      "score": 0.55,
+      "weight": 1.5,
+      "checks": [
+        {"name": "存在 x-workflows 或等效工作流说明", "result": "fail", "detail": "未找到工作流扩展字段"},
+        {"name": "关键资源有状态机说明", "result": "partial", "detail": "task status 字段有枚举值，但无转换条件说明"},
+        {"name": "端点 description 包含多步骤示例", "result": "partial", "detail": "约 3 个端点有步骤说明，覆盖率低"},
+        {"name": "错误码指向修复文档链接", "result": "fail", "detail": "错误码无外部文档链接"}
+      ],
+      "issues": [
+        "无任务创建→分配→完成的完整工作流文档",
+        "task 状态机（draft→active→completed）缺少转换规则说明",
+        "无 x-workflows / x-sequences 扩展字段"
+      ],
+      "recommendations": [
+        "添加 x-workflows 扩展描述主要业务流程（创建任务→分配→完成）",
+        "在 task.status 枚举说明中添加允许的状态转换",
+        "为 /tasks/{id}/transitions 端点添加状态机图表说明"
+      ]
+    },
+    {
+      "name": "design_consistency",
+      "name_zh": "设计一致性",
+      "description": "命名风格、分页风格、日期格式、认证方式统一",
+      "score": 0.85,
+      "weight": 2.0,
+      "checks": [
+        {"name": "参数命名风格一致 (snake_case)", "result": "pass", "detail": "全部参数使用 snake_case 命名"},
+        {"name": "分页参数风格统一", "result": "pass", "detail": "所有列表端点使用相同的 page/per_page 参数"},
+        {"name": "日期时间使用 ISO 8601", "result": "pass", "detail": "全部日期字段使用 date-time 格式"},
+        {"name": "认证方式统一", "result": "pass", "detail": "全部端点使用相同的 BearerAuth"},
+        {"name": "HTTP 动词语义正确", "result": "partial", "detail": "1 个端点使用 POST 做查询操作，建议改为 GET"}
+      ],
+      "issues": [
+        "POST /tasks/search 建议改为 GET /tasks?filter=... 以符合 REST 语义"
+      ],
+      "recommendations": [
+        "将 POST /tasks/search 改为 GET /tasks 并使用 query 参数过滤"
+      ]
+    },
+    {
+      "name": "traffic_resilience",
+      "name_zh": "流量韧性",
+      "description": "速率限制文档、重试策略、幂等性标注",
+      "score": 0.70,
+      "weight": 2.0,
+      "checks": [
+        {"name": "有速率限制说明 (x-rate-limit)", "result": "pass", "detail": "在 x-rate-limit 扩展中定义了限制规则"},
+        {"name": "定义 429 响应及 Retry-After 头", "result": "pass", "detail": "429 响应包含 Retry-After header 描述"},
+        {"name": "POST/PUT 端点有幂等性说明", "result": "partial", "detail": "PUT 端点有说明，POST 端点缺少 Idempotency-Key 说明"},
+        {"name": "有 backoff 策略建议", "result": "fail", "detail": "未找到重试退避策略说明"}
+      ],
+      "issues": [
+        "POST 端点未声明 Idempotency-Key 支持，AI agent 重试时存在重复创建风险",
+        "未提供指数退避重试策略建议"
+      ],
+      "recommendations": [
+        "在关键 POST 端点中添加 Idempotency-Key header 支持",
+        "在 API 描述中添加重试建议（指数退避，最大 3 次）"
+      ]
+    },
+    {
+      "name": "security_readiness",
+      "name_zh": "安全就绪度",
+      "description": "OAuth2 scope 设计、敏感字段标注、端点安全覆盖",
+      "score": 0.78,
+      "weight": 2.5,
+      "checks": [
+        {"name": "使用 OAuth2/API Key 认证", "result": "pass", "detail": "使用 OAuth2 Bearer Token 认证"},
+        {"name": "OAuth2 scope 粒度适中", "result": "pass", "detail": "定义了 tasks:read、tasks:write、admin 等 3 个 scope"},
+        {"name": "端点安全覆盖率 100%", "result": "partial", "detail": "17/18 端点有安全声明，1 个端点缺少"},
+        {"name": "敏感字段使用 writeOnly/x-sensitive 标注", "result": "partial", "detail": "password 字段有 writeOnly，email 字段未标注 x-sensitive"},
+        {"name": "无内部 IP 或 secret 硬编码", "result": "pass", "detail": "规范中未检测到硬编码密钥或内网地址"}
+      ],
+      "issues": [
+        "/health 端点缺少安全声明（应明确声明无需认证还是需要）",
+        "email 字段未标注 x-sensitive，agent 可能在日志中暴露"
+      ],
+      "recommendations": [
+        "为 /health 端点显式添加 security: [] 声明（表示公开端点）",
+        "为 user.email 等 PII 字段添加 x-sensitive: true 扩展"
+      ]
+    }
+  ]
+}

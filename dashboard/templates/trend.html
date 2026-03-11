@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}趋势分析 — AI-Ready Eval{% endblock %}
+{% block page_title %}趋势分析{% endblock %}
+
+{% block content %}
+<div class="score-card mb-4">
+  <div class="fw-semibold mb-3">评估得分趋势 <span class="text-muted fw-normal" style="font-size:13px">— 近 8 次评估历史</span></div>
+  <canvas id="trendChart" height="80"></canvas>
+</div>
+
+<div class="score-card">
+  <div class="fw-semibold mb-3">历史评估数据</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover" style="font-size:13px">
+      <thead class="table-light">
+        <tr>
+          <th>日期</th>
+          <th>API 得分</th>
+          <th>API 等级</th>
+          <th>Skill 得分</th>
+          <th>Skill 等级</th>
+          <th>变化</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i, row in enumerate(trend_table) %}
+        {% set api_pct = (row.api_score * 100)|int %}
+        {% set skill_pct = (row.skill_score * 100)|int %}
+        {% set api_grade = 'A' if row.api_score >= 0.85 else ('B' if row.api_score >= 0.70 else ('C' if row.api_score >= 0.50 else 'D')) %}
+        {% set skill_grade = 'A' if row.skill_score >= 0.85 else ('B' if row.skill_score >= 0.70 else ('C' if row.skill_score >= 0.50 else 'D')) %}
+        {% set grade_color = '#22c55e' if api_grade == 'A' else ('#eab308' if api_grade == 'B' else ('#f97316' if api_grade == 'C' else '#ef4444')) %}
+        <tr>
+          <td class="font-monospace">{{ row.date }}</td>
+          <td><strong style="color:{{ grade_color }}">{{ api_pct }}%</strong></td>
+          <td><span class="badge rounded-pill" style="background:{{ grade_color }};font-size:11px">{{ api_grade }}</span></td>
+          <td><strong>{{ skill_pct }}%</strong></td>
+          <td>
+            {% set sg_color = '#22c55e' if skill_grade == 'A' else ('#eab308' if skill_grade == 'B' else ('#f97316' if skill_grade == 'C' else '#ef4444')) %}
+            <span class="badge rounded-pill" style="background:{{ sg_color }};font-size:11px">{{ skill_grade }}</span>
+          </td>
+          <td>
+            {% if i > 0 %}
+              {% set prev = trend_table[i-1] %}
+              {% set diff = ((row.api_score - prev.api_score) * 100)|round(1) %}
+              {% if diff > 0 %}<span class="text-success">▲ {{ diff }}%</span>
+              {% elif diff < 0 %}<span class="text-danger">▼ {{ diff|abs }}%</span>
+              {% else %}<span class="text-muted">—</span>{% endif %}
+            {% else %}<span class="text-muted">基线</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const trendData = {{ trend_data|safe }};
+const labels = trendData.map(d => d.date);
+const apiScores = trendData.map(d => Math.round(d.api_score * 100));
+const skillScores = trendData.map(d => Math.round(d.skill_score * 100));
+
+new Chart(document.getElementById('trendChart'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      {
+        label: 'API AI-Readiness',
+        data: apiScores,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,0.1)',
+        tension: 0.4, fill: true, pointRadius: 5, pointHoverRadius: 7,
+      },
+      {
+        label: 'Skill Quality',
+        data: skillScores,
+        borderColor: '#8b5cf6',
+        backgroundColor: 'rgba(139,92,246,0.1)',
+        tension: 0.4, fill: true, pointRadius: 5, pointHoverRadius: 7,
+      },
+      {
+        label: 'Agent-Ready 阈值 (85%)',
+        data: Array(labels.length).fill(85),
+        borderColor: '#22c55e',
+        borderDash: [6, 4],
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: false,
+      },
+    ]
+  },
+  options: {
+    responsive: true,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { position: 'top', labels: { font: { size: 12 } } },
+      tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw}%` } },
+    },
+    scales: {
+      y: {
+        min: 0, max: 100,
+        ticks: { callback: v => v + '%' },
+        grid: { color: '#f1f5f9' },
+      },
+      x: { grid: { display: false } },
+    },
+  }
+});
+</script>
+{% endblock %}

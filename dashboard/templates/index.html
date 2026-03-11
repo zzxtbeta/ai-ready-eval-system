@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block title %}AI-Ready Eval — 概览{% endblock %}
+{% block page_title %}评估概览{% endblock %}
+
+{% block content %}
+{% if is_demo %}
+<div class="demo-banner">
+  <i class="bi bi-info-circle-fill"></i>
+  当前展示的是内置演示数据（TaskMaster API + Code Review Skill）。
+  <a href="/run-eval" class="ms-2 fw-semibold text-decoration-none" style="color:#92400e">上传真实 spec →</a>
+</div>
+{% endif %}
+
+<!-- Score Cards Row -->
+<div class="row g-3 mb-4">
+  <!-- API Score -->
+  <div class="col-md-6">
+    <div class="score-card h-100" style="border-top-color: {{ api_grade.color }};">
+      <div class="d-flex align-items-start justify-content-between mb-2">
+        <div>
+          <div class="text-muted" style="font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase">API AI-Readiness</div>
+          {% if api_report %}
+          <div class="fs-6 fw-semibold mt-1">{{ api_report.get('spec_info', {}).get('title', 'API 规范') }}</div>
+          {% endif %}
+        </div>
+        <span class="grade-badge" style="background:{{ api_grade.bg }};color:{{ api_grade.color }};">
+          Grade {{ api_grade.grade }} · {{ api_grade.label }}
+        </span>
+      </div>
+      <div class="d-flex align-items-end gap-3 mt-3">
+        <div class="score-number" style="color:{{ api_grade.color }}">{{ "%.0f"|format(api_score * 100) }}<span style="font-size:22px;color:#94a3b8">%</span></div>
+        <div class="pb-2 text-muted" style="font-size:13px">8 个维度综合</div>
+      </div>
+      {% if api_report %}
+      <div class="row mt-3">
+        {% for dim in api_report.get('dimensions', [])[:4] %}
+        <div class="col-6 mb-2">
+          <div style="font-size:11px;color:#64748b;margin-bottom:3px">{{ dim.name_zh if dim.name_zh else dim.name }}</div>
+          <div class="d-flex align-items-center gap-2">
+            <div class="progress-sm flex-grow-1">
+              <div class="progress-sm-fill" style="width:{{ (dim.score * 100)|int }}%;background:{% if dim.score >= 0.85 %}#22c55e{% elif dim.score >= 0.70 %}#eab308{% elif dim.score >= 0.50 %}#f97316{% else %}#ef4444{% endif %}"></div>
+            </div>
+            <span style="font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:600">{{ "%.0f"|format(dim.score * 100) }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <a href="/api-eval" class="btn btn-outline-primary btn-sm mt-2 w-100">查看 API 详情 →</a>
+      {% else %}
+      <div class="text-muted mt-3" style="font-size:13px">未找到 API 报告</div>
+      <a href="/run-eval" class="btn btn-primary btn-sm mt-2 w-100">运行评估 →</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Skill Score -->
+  <div class="col-md-6">
+    <div class="score-card h-100" style="border-top-color: {{ skill_grade.color }};">
+      <div class="d-flex align-items-start justify-content-between mb-2">
+        <div>
+          <div class="text-muted" style="font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase">Skill 质量评估</div>
+          {% if skill_report %}
+          <div class="fs-6 fw-semibold mt-1">{{ skill_report.get('skill_info', {}).get('name', 'Skill 文件') }}</div>
+          {% endif %}
+        </div>
+        <span class="grade-badge" style="background:{{ skill_grade.bg }};color:{{ skill_grade.color }};">
+          Grade {{ skill_grade.grade }} · {{ skill_grade.label }}
+        </span>
+      </div>
+      <div class="d-flex align-items-end gap-3 mt-3">
+        <div class="score-number" style="color:{{ skill_grade.color }}">{{ "%.0f"|format(skill_score * 100) }}<span style="font-size:22px;color:#94a3b8">%</span></div>
+        <div class="pb-2 text-muted" style="font-size:13px">5 个维度综合</div>
+      </div>
+      {% if skill_report %}
+      <div class="row mt-3">
+        {% for dim in skill_report.get('dimensions', []) %}
+        <div class="col-6 mb-2">
+          <div style="font-size:11px;color:#64748b;margin-bottom:3px">{{ dim.name_zh if dim.name_zh else dim.name }}</div>
+          <div class="d-flex align-items-center gap-2">
+            <div class="progress-sm flex-grow-1">
+              <div class="progress-sm-fill" style="width:{{ (dim.score * 100)|int }}%;background:{% if dim.score >= 0.85 %}#22c55e{% elif dim.score >= 0.70 %}#eab308{% elif dim.score >= 0.50 %}#f97316{% else %}#ef4444{% endif %}"></div>
+            </div>
+            <span style="font-size:12px;font-family:'JetBrains Mono',monospace;font-weight:600">{{ "%.0f"|format(dim.score * 100) }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <a href="/skill-eval" class="btn btn-outline-primary btn-sm mt-2 w-100">查看 Skill 详情 →</a>
+      {% else %}
+      <div class="text-muted mt-3" style="font-size:13px">未找到 Skill 报告</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Trend Chart + Issues Row -->
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="score-card">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="fw-semibold">评估趋势 <span class="text-muted fw-normal" style="font-size:13px">— 近 8 次评估</span></div>
+        <a href="/trends" class="btn btn-sm btn-outline-secondary">详情</a>
+      </div>
+      <canvas id="trendMiniChart" height="100"></canvas>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="score-card h-100">
+      <div class="fw-semibold mb-3">关键指标</div>
+      <div class="row g-2">
+        <div class="col-6">
+          <div class="border rounded p-3 text-center">
+            <div class="stat-mini-value" style="color:#3b82f6">
+              {% if api_report %}{{ api_report.get('dimensions', [])|length }}{% else %}—{% endif %}
+            </div>
+            <div class="stat-mini-label">API 维度</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="border rounded p-3 text-center">
+            <div class="stat-mini-value" style="color:#8b5cf6">
+              {% if skill_report %}{{ skill_report.get('dimensions', [])|length }}{% else %}—{% endif %}
+            </div>
+            <div class="stat-mini-label">Skill 维度</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="border rounded p-3 text-center">
+            <div class="stat-mini-value" style="color:#ef4444">
+              {% if api_report %}
+                {% set issues_count = namespace(v=0) %}
+                {% for dim in api_report.get('dimensions', []) %}
+                  {% set issues_count.v = issues_count.v + (dim.get('issues', [])|length) %}
+                {% endfor %}
+                {{ issues_count.v }}
+              {% else %}—{% endif %}
+            </div>
+            <div class="stat-mini-label">API 问题</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="border rounded p-3 text-center">
+            <div class="stat-mini-value" style="color:#22c55e">
+              {% if api_report %}
+                {% set pass_count = namespace(v=0) %}
+                {% for dim in api_report.get('dimensions', []) %}
+                  {% for chk in dim.get('checks', []) %}
+                    {% if chk.get('result') == 'pass' %}{% set pass_count.v = pass_count.v + 1 %}{% endif %}
+                  {% endfor %}
+                {% endfor %}
+                {{ pass_count.v }}
+              {% else %}—{% endif %}
+            </div>
+            <div class="stat-mini-label">通过检查</div>
+          </div>
+        </div>
+      </div>
+      <div class="mt-3 text-muted" style="font-size:12px">
+        <i class="bi bi-clock me-1"></i>最近更新: {{ last_updated }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Top Issues (if api_report) -->
+{% if api_report %}
+{% set all_issues = [] %}
+{% for dim in api_report.get('dimensions', []) %}
+  {% for issue in dim.get('issues', [])[:2] %}
+    {% if all_issues.append({'dim': dim.get('name_zh', dim.name), 'issue': issue}) %}{% endif %}
+  {% endfor %}
+{% endfor %}
+{% if all_issues %}
+<div class="score-card mt-3">
+  <div class="fw-semibold mb-3">⚠️ 主要发现</div>
+  {% for item in all_issues[:6] %}
+  <div class="issue-pill">
+    <i class="bi bi-exclamation-circle-fill mt-1" style="flex-shrink:0"></i>
+    <div><span class="badge bg-secondary me-1" style="font-size:10px">{{ item.dim }}</span>{{ item.issue }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const trendData = {{ trend_data|safe }};
+const labels = trendData.map(d => d.date.substring(5));
+const apiScores = trendData.map(d => Math.round(d.api_score * 100));
+const skillScores = trendData.map(d => Math.round(d.skill_score * 100));
+
+new Chart(document.getElementById('trendMiniChart'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      {
+        label: 'API Score',
+        data: apiScores,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,0.08)',
+        tension: 0.4, fill: true, pointRadius: 3,
+      },
+      {
+        label: 'Skill Score',
+        data: skillScores,
+        borderColor: '#8b5cf6',
+        backgroundColor: 'rgba(139,92,246,0.08)',
+        tension: 0.4, fill: true, pointRadius: 3,
+      },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top', labels: { font: { size: 12 } } } },
+    scales: {
+      y: { min: 0, max: 100, grid: { color: '#f1f5f9' } },
+      x: { grid: { display: false } },
+    },
+  }
+});
+</script>
+{% endblock %}

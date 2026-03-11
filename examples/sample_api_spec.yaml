@@ -1,0 +1,547 @@
+openapi: "3.0.3"
+info:
+  title: TaskMaster API
+  version: "2.1.0"
+  description: |
+    A comprehensive task management API for teams. Supports creating tasks,
+    assigning to team members, tracking progress, and generating reports.
+    
+    ## Authentication
+    All endpoints require a Bearer token obtained via OAuth2.
+    
+    ## Rate Limiting
+    - Standard: 1000 requests/hour per token
+    - Bulk operations: 100 requests/hour
+    
+  contact:
+    name: TaskMaster API Team
+    email: api@taskmaster.example.com
+  x-llms-txt: /llms.txt
+
+servers:
+  - url: https://api.taskmaster.example.com/v2
+    description: Production
+  - url: https://api-staging.taskmaster.example.com/v2
+    description: Staging
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Tasks
+    description: Core task management operations
+  - name: Projects
+    description: Project grouping and management
+  - name: Users
+    description: User and team management
+  - name: Comments
+    description: Task comments and discussions
+  - name: Attachments
+    description: File attachments for tasks
+  - name: Reports
+    description: Analytics and reporting
+  - name: Webhooks
+    description: Event notification subscriptions
+  - name: Health
+    description: Service health and status
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns the current health status of the API service.
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: List tasks
+      description: |
+        Returns a paginated list of tasks visible to the authenticated user.
+        Supports filtering by status, assignee, project, and priority.
+      operationId: listTasks
+      parameters:
+        - name: page
+          in: query
+          description: Page number (1-based)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+            example: 1
+        - name: per_page
+          in: query
+          description: Number of results per page (max 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 20
+        - name: status
+          in: query
+          description: "Filter by task status. Values: draft, active, blocked, completed, cancelled"
+          schema:
+            type: string
+            enum: [draft, active, blocked, completed, cancelled]
+        - name: assignee_id
+          in: query
+          description: Filter to tasks assigned to a specific user ID
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [low, medium, high, critical]
+      responses:
+        "200":
+          description: Paginated list of tasks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+    post:
+      tags: [Tasks]
+      summary: Create a task
+      description: |
+        Creates a new task. The task starts in `draft` status.
+        
+        **Workflow:** After creation, use `POST /tasks/{id}/assign` to assign,
+        then `POST /tasks/{id}/activate` to move to active status.
+      operationId: createTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskRequest"
+            example:
+              title: "Implement OAuth2 login"
+              description: "Add OAuth2 support for Google and GitHub"
+              project_id: "proj_abc123"
+              priority: "high"
+              due_date: "2025-02-01"
+      responses:
+        "201":
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /tasks/{task_id}:
+    get:
+      tags: [Tasks]
+      summary: Get task by ID
+      description: Returns a single task with all its details including subtasks and comments count.
+      operationId: getTask
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "200":
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [Tasks]
+      summary: Update task
+      description: |
+        Updates task fields. Supports partial updates (only send changed fields).
+        This operation is idempotent — sending the same request multiple times 
+        produces the same result.
+      operationId: updateTask
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTaskRequest"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [Tasks]
+      summary: Delete task
+      description: Permanently deletes a task and all its subtasks. This action cannot be undone.
+      operationId: deleteTask
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      responses:
+        "204":
+          description: Task deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /tasks/{task_id}/assign:
+    post:
+      tags: [Tasks]
+      summary: Assign task to user
+      description: |
+        Assigns the task to one or more users. Triggers an email notification to assignees.
+        The task must be in `draft` or `active` status.
+      operationId: assignTask
+      parameters:
+        - $ref: "#/components/parameters/TaskId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assignee_ids]
+              properties:
+                assignee_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  description: List of user IDs to assign
+                  example: ["user_abc", "user_xyz"]
+      responses:
+        "200":
+          description: Assignment successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /projects:
+    get:
+      tags: [Projects]
+      summary: List projects
+      operationId: listProjects
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectListResponse"
+
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get current user
+      description: Returns the profile of the currently authenticated user.
+      operationId: getCurrentUser
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "OAuth2 JWT token. Scopes: tasks:read, tasks:write, admin"
+
+  parameters:
+    TaskId:
+      name: task_id
+      in: path
+      required: true
+      description: Unique identifier for the task
+      schema:
+        type: string
+        format: uuid
+        example: "task_abc123"
+
+  schemas:
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique task identifier
+          example: "task_abc123"
+        title:
+          type: string
+          description: Short, descriptive task title
+          example: "Implement OAuth2 login"
+        description:
+          type: string
+          description: Detailed task description (supports Markdown)
+        status:
+          type: string
+          enum: [draft, active, blocked, completed, cancelled]
+          description: |
+            Task lifecycle status. Transitions:
+            - draft → active (via /activate)
+            - active → blocked (via /block)
+            - active → completed (via /complete)
+            - any → cancelled (via /cancel)
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+        assignees:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserRef"
+        project_id:
+          type: string
+          format: uuid
+        due_date:
+          type: string
+          format: date
+          example: "2025-02-01"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateTaskRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Task title (required)
+        description:
+          type: string
+          description: Detailed description (Markdown supported)
+        project_id:
+          type: string
+          format: uuid
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+          default: medium
+        due_date:
+          type: string
+          format: date
+
+    UpdateTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+        due_date:
+          type: string
+          format: date
+
+    TaskListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Task"
+        total:
+          type: integer
+          description: Total number of matching tasks
+          example: 142
+        page:
+          type: integer
+          example: 1
+        per_page:
+          type: integer
+          example: 20
+
+    ProjectListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string }
+        total: { type: integer }
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Display name
+        email:
+          type: string
+          format: email
+          x-sensitive: true
+          description: User email address (PII — do not log)
+        role:
+          type: string
+          enum: [member, admin, owner]
+        created_at:
+          type: string
+          format: date-time
+
+    UserRef:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, down]
+          example: ok
+        version:
+          type: string
+          example: "2.1.0"
+        uptime_seconds:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code
+          example: "VALIDATION_ERROR"
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error context
+        field_errors:
+          type: array
+          description: Field-level validation errors
+          items:
+            type: object
+            properties:
+              field: { type: string }
+              message: { type: string }
+        hint:
+          type: string
+          description: Suggested action to resolve the error
+
+  responses:
+    Unauthorized:
+      description: Authentication required or token expired
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: "UNAUTHORIZED"
+            message: "Invalid or expired Bearer token"
+            hint: "Refresh your OAuth2 token and retry"
+
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: "VALIDATION_ERROR"
+            message: "Request validation failed"
+            field_errors:
+              - field: "title"
+                message: "Title is required and must be between 1-255 characters"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: "NOT_FOUND"
+            message: "Task not found"
+            hint: "Check the task_id and ensure you have access to this resource"
+
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          description: Seconds until the rate limit resets
+          schema:
+            type: integer
+            example: 60
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: "RATE_LIMITED"
+            message: "Rate limit exceeded"
+            hint: "Wait 60 seconds before retrying"
+
+x-rate-limit:
+  standard:
+    requests_per_hour: 1000
+    burst: 50
+  bulk:
+    requests_per_hour: 100

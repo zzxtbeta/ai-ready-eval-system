@@ -1,0 +1,126 @@
+{
+  "skill_info": {
+    "name": "Code Review Assistant",
+    "file": "code-review.md",
+    "description": "Expert code review skill that analyzes PRs for bugs, security issues, and best practices"
+  },
+  "overall_score": 0.792,
+  "grade": "B",
+  "grade_label": "Usable",
+  "_is_demo": true,
+  "generated_at": "2025-01-15T10:30:00Z",
+  "dimensions": [
+    {
+      "name": "structure",
+      "name_zh": "结构合规性",
+      "description": "文件行数、frontmatter 完整性、分层结构",
+      "score": 0.85,
+      "weight": 2.0,
+      "checks": [
+        {"name": "行数在合理范围 (50-200行)", "result": "pass", "detail": "共 147 行，结构清晰"},
+        {"name": "frontmatter 完整 (name+description ≥30词)", "result": "pass", "detail": "frontmatter 包含 name, description(43词), version, tags"},
+        {"name": "存在 references/ 分层", "result": "partial", "detail": "有 references 目录但仅 1 个文件"},
+        {"name": "无硬编码数据", "result": "pass", "detail": "未发现硬编码 URL、密钥、用户名"}
+      ],
+      "issues": [
+        "references/ 目录下的说明文件较少，建议补充规范参考文档"
+      ],
+      "recommendations": [
+        "为 references/ 目录添加 security-checklist.md 和 style-guide.md"
+      ]
+    },
+    {
+      "name": "instruction_quality",
+      "name_zh": "指令质量",
+      "description": "规则密度、why 解释率、示例覆盖、边界条件",
+      "score": 0.80,
+      "weight": 2.5,
+      "checks": [
+        {"name": "祈使规则密度 ≥60%", "result": "pass", "detail": "规则语句占比 73%（ALWAYS/NEVER/MUST/SHALL）"},
+        {"name": "why 解释率 ≥30%", "result": "pass", "detail": "41% 的规则有 because/reason/why 解释"},
+        {"name": "每个主要规则有 example", "result": "partial", "detail": "7/12 规则有具体示例（58% 覆盖率）"},
+        {"name": "边界条件说明完整", "result": "partial", "detail": "覆盖了空文件/大文件场景，未覆盖二进制文件"}
+      ],
+      "issues": [
+        "5 个规则缺少示例代码，降低了 agent 遵守准确率",
+        "未说明如何处理二进制文件或非代码变更（如 JSON config）"
+      ],
+      "recommendations": [
+        "为每条规则添加正反例代码块",
+        "添加 '当文件是非代码时...' 的边界条件说明"
+      ]
+    },
+    {
+      "name": "trigger_accuracy",
+      "name_zh": "触发准确率",
+      "description": "应触发/不应触发场景的识别准确率",
+      "score": 0.92,
+      "weight": 3.0,
+      "trigger_results": [
+        {"query": "Please review this pull request", "should_trigger": true, "correct": true},
+        {"query": "Check my code for bugs", "should_trigger": true, "correct": true},
+        {"query": "Review PR #123", "should_trigger": true, "correct": true},
+        {"query": "Write unit tests for this function", "should_trigger": false, "correct": true},
+        {"query": "What's the capital of France?", "should_trigger": false, "correct": true},
+        {"query": "Can you look at my diff and give feedback?", "should_trigger": true, "correct": true},
+        {"query": "Format this code", "should_trigger": false, "correct": false},
+        {"query": "Analyze this patch", "should_trigger": true, "correct": true},
+        {"query": "Generate documentation", "should_trigger": false, "correct": true},
+        {"query": "Is this code secure?", "should_trigger": true, "correct": true}
+      ],
+      "checks": [
+        {"name": "Should-Trigger 准确率 ≥80%", "result": "pass", "detail": "7/7 正向触发均正确 (100%)"},
+        {"name": "Should-NOT-Trigger 准确率 ≥80%", "result": "pass", "detail": "2/3 负向触发正确 (67% — 1 个误触发)"},
+        {"name": "边界模糊场景处理", "result": "partial", "detail": "'Format this code' 误触发"}
+      ],
+      "issues": [
+        "'Format this code' 场景误触发，建议在 skill 中明确说明格式化不属于 Code Review"
+      ],
+      "recommendations": [
+        "在 shouldNotTrigger 示例中添加格式化、自动修复相关场景"
+      ]
+    },
+    {
+      "name": "functional_reliability",
+      "name_zh": "功能可靠性",
+      "description": "基于断言的功能测试通过率",
+      "score": 0.75,
+      "weight": 3.0,
+      "checks": [
+        {"name": "输出包含 severity 评级", "result": "pass", "detail": "所有测试输出包含 [critical/major/minor] 标签"},
+        {"name": "安全问题识别准确", "result": "pass", "detail": "SQL injection 和 XSS 场景均正确识别"},
+        {"name": "输出格式符合规范 (Markdown)", "result": "partial", "detail": "8/10 测试输出格式正确，2 个缺少 Summary 章节"},
+        {"name": "建议操作性强", "result": "partial", "detail": "部分建议过于笼统，缺少代码示例"},
+        {"name": "边界情况：空 diff 处理", "result": "fail", "detail": "空 diff 时输出了无意义的审查结论"}
+      ],
+      "issues": [
+        "空 diff 输入时应返回 '无变更可审查'，而非生成无意义输出",
+        "部分修复建议缺少具体代码示例"
+      ],
+      "recommendations": [
+        "添加 '当 diff 为空时，返回 No changes to review' 的明确规则",
+        "要求修复建议中必须包含伪代码或代码片段"
+      ]
+    },
+    {
+      "name": "integration",
+      "name_zh": "集成兼容性",
+      "description": "多 Skill 路由兼容、输出格式标准化",
+      "score": 0.65,
+      "weight": 2.0,
+      "checks": [
+        {"name": "与 test-generator skill 无冲突", "result": "pass", "detail": "路由测试通过，无歧义触发"},
+        {"name": "输出格式与下游 skill 兼容", "result": "partial", "detail": "Markdown 输出兼容，但缺少结构化 JSON 输出选项"},
+        {"name": "存在明确的 handoff 说明", "result": "fail", "detail": "无说明完成后是否应触发其他 skill"}
+      ],
+      "issues": [
+        "缺少结构化 JSON 输出模式，无法直接被自动化流水线消费",
+        "未说明 code-review 完成后是否可触发 auto-fix skill"
+      ],
+      "recommendations": [
+        "添加 JSON 输出模式：当 format=json 时返回结构化审查结果",
+        "添加 'Post-Review: 如需自动修复，可触发 auto-fix skill' 的 handoff 说明"
+      ]
+    }
+  ]
+}

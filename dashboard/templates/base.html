@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}AI-Ready Eval System{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --brand-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      --sidebar-width: 230px;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1e293b; }
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      min-height: 100vh;
+      background: #0f172a;
+      position: fixed;
+      top: 0; left: 0;
+      display: flex; flex-direction: column;
+      z-index: 100;
+    }
+    .sidebar-brand {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .sidebar-brand-title {
+      font-size: 13px; font-weight: 700;
+      background: var(--brand-gradient);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      letter-spacing: 0.5px;
+    }
+    .sidebar-brand-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .sidebar-nav { padding: 12px 0; flex: 1; }
+    .sidebar-nav .nav-link {
+      display: flex; align-items: center; gap: 10px;
+      color: #94a3b8; font-size: 13.5px; font-weight: 500;
+      padding: 9px 20px; border-radius: 0;
+      transition: all .15s;
+    }
+    .sidebar-nav .nav-link:hover { color: #e2e8f0; background: #1e293b; }
+    .sidebar-nav .nav-link.active { color: #fff; background: #1e293b; border-left: 3px solid #3b82f6; }
+    .sidebar-nav .nav-link i { font-size: 16px; width: 18px; text-align: center; }
+    .sidebar-section { font-size: 10px; color: #475569; padding: 16px 20px 4px; letter-spacing: 1px; text-transform: uppercase; }
+    /* Main */
+    .main-content { margin-left: var(--sidebar-width); min-height: 100vh; }
+    .topbar {
+      background: #fff; border-bottom: 1px solid #e2e8f0;
+      padding: 12px 28px; display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 50;
+    }
+    .topbar-title { font-size: 16px; font-weight: 600; color: #1e293b; }
+    .page-body { padding: 28px; }
+    /* Score card */
+    .score-card {
+      background: #fff; border-radius: 12px; border: 1px solid #e2e8f0;
+      padding: 24px; position: relative; overflow: hidden;
+    }
+    .score-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: var(--brand-gradient);
+    }
+    .score-number { font-size: 48px; font-weight: 700; line-height: 1; font-family: var(--font-mono); }
+    .grade-badge {
+      display: inline-flex; align-items: center; padding: 4px 12px;
+      border-radius: 999px; font-size: 13px; font-weight: 600;
+    }
+    /* Dimension row */
+    .dim-row { background: #fff; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 8px; overflow: hidden; }
+    .dim-row-header { padding: 14px 18px; display: flex; align-items: center; cursor: pointer; }
+    .dim-row-header:hover { background: #f8fafc; }
+    .dim-name { font-weight: 600; font-size: 14px; flex: 1; }
+    .dim-score-text { font-family: var(--font-mono); font-size: 15px; font-weight: 600; margin-right: 12px; }
+    .progress-sm { height: 6px; border-radius: 3px; background: #e2e8f0; overflow: hidden; width: 100px; }
+    .progress-sm-fill { height: 100%; border-radius: 3px; }
+    .dim-body { padding: 0 18px 14px; display: none; }
+    .dim-body.show { display: block; }
+    /* Check item */
+    .check-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 0; border-bottom: 1px solid #f1f5f9;
+      font-size: 13px;
+    }
+    .check-item:last-child { border-bottom: none; }
+    .check-pass { color: #22c55e; }
+    .check-partial { color: #eab308; }
+    .check-fail { color: #ef4444; }
+    /* Issue / Recommendation pills */
+    .issue-pill {
+      background: #fef2f2; color: #dc2626; border-radius: 6px;
+      padding: 6px 10px; font-size: 12px; margin-bottom: 4px;
+      display: flex; align-items: flex-start; gap: 6px;
+    }
+    .rec-pill {
+      background: #eff6ff; color: #1d4ed8; border-radius: 6px;
+      padding: 6px 10px; font-size: 12px; margin-bottom: 4px;
+      display: flex; align-items: flex-start; gap: 6px;
+    }
+    /* Demo banner */
+    .demo-banner {
+      background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%);
+      border: 1px solid #fcd34d; border-radius: 8px; padding: 10px 16px;
+      font-size: 13px; color: #78350f; margin-bottom: 20px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    /* Stat mini */
+    .stat-mini { text-align: center; padding: 16px 12px; }
+    .stat-mini-value { font-size: 28px; font-weight: 700; font-family: var(--font-mono); }
+    .stat-mini-label { font-size: 12px; color: #64748b; margin-top: 4px; }
+    /* Responsive */
+    @media (max-width: 768px) {
+      .sidebar { position: relative; width: 100%; min-height: auto; }
+      .main-content { margin-left: 0; }
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-title">AI-READY EVAL</div>
+      <div class="sidebar-brand-sub">Agent Quality System</div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="sidebar-section">Dashboard</div>
+      <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">
+        <i class="bi bi-grid-1x2-fill"></i> 概览
+      </a>
+      <div class="sidebar-section">评估模块</div>
+      <a href="{{ url_for('api_eval_detail') }}" class="nav-link {% if request.endpoint == 'api_eval_detail' %}active{% endif %}">
+        <i class="bi bi-plug-fill"></i> API 评估
+      </a>
+      <a href="{{ url_for('skill_eval_detail') }}" class="nav-link {% if request.endpoint == 'skill_eval_detail' %}active{% endif %}">
+        <i class="bi bi-lightning-fill"></i> Skill 评估
+      </a>
+      <a href="{{ url_for('trends') }}" class="nav-link {% if request.endpoint == 'trends' %}active{% endif %}">
+        <i class="bi bi-graph-up"></i> 趋势分析
+      </a>
+      <div class="sidebar-section">工具</div>
+      <a href="{{ url_for('run_eval') }}" class="nav-link {% if request.endpoint == 'run_eval' %}active{% endif %}">
+        <i class="bi bi-play-circle-fill"></i> 在线评估
+      </a>
+      <a href="/api/scores" class="nav-link" target="_blank">
+        <i class="bi bi-code-slash"></i> JSON API
+      </a>
+      <a href="https://github.com/your-org/ai-ready-eval" class="nav-link" target="_blank">
+        <i class="bi bi-github"></i> GitHub
+      </a>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="topbar">
+      <div class="topbar-title">{% block page_title %}概览{% endblock %}</div>
+      <div class="d-flex align-items-center gap-3">
+        <a href="{{ url_for('run_eval') }}" class="btn btn-sm btn-primary px-3">
+          <i class="bi bi-play-fill me-1"></i>运行评估
+        </a>
+      </div>
+    </div>
+
+    <div class="page-body">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    // Toggle dimension details
+    document.querySelectorAll('.dim-row-header').forEach(header => {
+      header.addEventListener('click', () => {
+        const body = header.nextElementSibling;
+        if (body && body.classList.contains('dim-body')) {
+          body.classList.toggle('show');
+          const icon = header.querySelector('.toggle-icon');
+          if (icon) icon.style.transform = body.classList.contains('show') ? 'rotate(180deg)' : '';
+        }
+      });
+    });
+  </script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

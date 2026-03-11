@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}暂无数据 — AI-Ready Eval{% endblock %}
+{% block page_title %}暂无评估数据{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-6 text-center">
+    <div style="font-size:64px;margin-bottom:16px">📋</div>
+    <h4 class="fw-semibold">尚未运行评估</h4>
+    <p class="text-muted" style="font-size:14px">
+      当前没有找到 <code>{{ page }}</code> 的评估报告。<br>
+      请通过在线评估上传规范，或使用 CLI 工具在本地运行。
+    </p>
+    <div class="d-flex gap-3 justify-content-center mt-4">
+      <a href="/run-eval" class="btn btn-primary px-4">
+        <i class="bi bi-play-fill me-2"></i>在线评估
+      </a>
+      <a href="/" class="btn btn-outline-secondary px-4">返回概览</a>
+    </div>
+    <div class="score-card mt-4 text-start" style="background:#0f172a;color:#e2e8f0;">
+      <div class="fw-semibold mb-2" style="font-size:12px;color:#94a3b8">CLI 快速开始</div>
+      <pre style="font-size:11px;color:#7dd3fc;margin:0">python main.py eval-api --spec openapi.yaml
+python main.py eval-skill --skill SKILL.md</pre>
+    </div>
+  </div>
+</div>
+{% endblock %}
