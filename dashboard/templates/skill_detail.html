@@ -329,9 +329,12 @@ const SKILL_L1_DIMS = [
 ];
 
 function getSkillMd(files) {
-  return files['SKILL.md'] || files['skill.md']
-    || (Object.entries(files).find(([k]) => k.toLowerCase() === 'skill.md') || [])[1]
-    || '';
+  // Exact root lookup first
+  if (files['SKILL.md']) return files['SKILL.md'];
+  if (files['skill.md']) return files['skill.md'];
+  // Support ZIP extracts like skill-creator/SKILL.md
+  const entry = Object.entries(files).find(([k]) => /(\/|^)skill\.md$/i.test(k));
+  return entry ? entry[1] : '';
 }
 
 function parseFrontmatter(content) {
@@ -347,9 +350,14 @@ function analyzeLayer1(files) {
   const lc     = lines.length;
   const allF   = Object.keys(files);
   const fm     = parseFrontmatter(md);
-  const hasRef  = allF.some(f => f.startsWith('references/'));
-  const hasEv   = allF.some(f => f.startsWith('evals/') || f.endsWith('evals.json'));
-  const hasSc   = allF.some(f => f.startsWith('scripts/'));
+  const hasFm  = Object.keys(fm).length > 0;
+
+  // Resolve base prefix so nested ZIPs (e.g. skill-creator/SKILL.md) work correctly
+  const mdKey  = allF.find(k => /(\/|^)skill\.md$/i.test(k)) || 'SKILL.md';
+  const prefix = mdKey.includes('/') ? mdKey.substring(0, mdKey.lastIndexOf('/') + 1) : '';
+  const hasRef  = allF.some(f => f.startsWith(prefix + 'references/') || f.startsWith(prefix + 'reference/'));
+  const hasEv   = allF.some(f => f.startsWith(prefix + 'evals/') || f.endsWith('evals.json'));
+  const hasSc   = allF.some(f => f.startsWith(prefix + 'scripts/'));
 
   // ── D1: 文件结构 ──────────────────────────────────────────────────────
   const d1c = []; let d1p = 0, d1t = 0;
@@ -359,7 +367,6 @@ function analyzeLayer1(files) {
     detail: hasMd ? lc + ' 行' : '未找到 SKILL.md，Skill 的必须主文件' });
   d1t++; d1p += hasMd ? 1 : 0;
 
-  const hasFm = Object.keys(fm).length > 0;
   d1c.push({ label: 'YAML frontmatter（---...---）', status: hasFm ? 'pass' : 'fail',
     detail: hasFm ? '字段：' + Object.keys(fm).slice(0,6).join(', ')
       : '未找到 frontmatter，name / description 等关键字段必须在此定义' });
@@ -418,13 +425,13 @@ function analyzeLayer1(files) {
   d2t++; d2p += hasWhen ? 1 : 0.1;
 
   // Pushy 语气——官方原话："make the description a little bit pushy"（因 Claude 有 undertrigger 倾向）
-  const pushyPat = /\b(make sure to use|always use|use this whenever|use this skill whenever|use this for any|use this even if|don't forget to use|be sure to use|务必.*使用|确保.*使用|一定要.*调用|任何时候.*都.*用|不管.*都.*用)/i;
+  const pushyPat = /\b(make sure to use|always use this|use this whenever|use this skill whenever|use this (even|for any)|don't forget to use|be sure to use|even if (they|the user) don.t|务必.*使用|确保.*使用|一定要.*调用|任何时候.*都.*用|不管.*都.*用|即使.*没.*(明确|explicitly))/i;
   const isPushy  = pushyPat.test(dv);
-  d2c.push({ label: '"主动触发"语气（Pushy，官方必要）', status: isPushy ? 'pass' : 'partial',
+  d2c.push({ label: '"主动触发"语气（Pushy，官方建议）', status: isPushy ? 'pass' : 'partial',
     detail: isPushy
       ? '已包含主动触发语气'
-      : '官方原文："Claude tends to undertrigger. Make descriptions a little bit pushy." 建议加入："Make sure to use this skill whenever the user mentions [X], even if they don\'t explicitly ask for it."' });
-  d2t++; d2p += isPushy ? 1 : 0.2;
+      : '官方建议（非强制）："Claude tends to undertrigger. Make descriptions a little bit pushy." 建议末尾加："Make sure to use this skill whenever the user mentions [X], even if they don\'t explicitly ask for it."' });
+  d2t++; d2p += isPushy ? 1 : 0.4;
 
   // WHAT + WHEN 同时兼顾
   const whatPat = /\b(help[s]?|enable[s]?|allow[s]?|create[s]?|generate[s]?|build[s]?|convert[s]?|analyze[s]?|process|用于|帮助|生成|创建|实现|提供|处理|分析|转换)/i;
@@ -499,11 +506,11 @@ function analyzeLayer1(files) {
   // evals/ 存在
   d4c.push({ label: 'evals/ 测试用例目录', status: hasEv ? 'pass' : 'partial',
     detail: hasEv
-      ? '已有评估用例文件'
-      : '官方建议：每个 Skill 应有 evals/evals.json，记录 2-3 个真实场景测试用例（"test - review - improve" 循环的基础）' });
-  d4t++; d4p += hasEv ? 1 : 0.1;
+      ? '已有评估用例目录'
+      : '官方建议：每个 Skill 应有 evals/ 目录和 evals.json，记录真实场景测试用例（"test–review–improve" 循环的基础）' });
+  d4t++; d4p += hasEv ? 1 : 0.3;
 
-  // evals.json 内容
+  // evals.json 内容（≥1 条即通过——哪怕一条真实场景也是好的起点）
   const evFile = allF.find(f => f.endsWith('evals.json'));
   let evPromptCount = 0, evHasTrigger = false;
   if (evFile && files[evFile]) {
@@ -514,34 +521,43 @@ function analyzeLayer1(files) {
       evHasTrigger  = arr.some(e => 'should_trigger' in e);
     } catch(_) {}
   }
-  const evQSt = evPromptCount >= 3 ? 'pass' : evPromptCount >= 1 ? 'partial' : (hasEv ? 'partial' : 'fail');
-  d4c.push({ label: 'evals.json 测试用例（≥3 条）', status: evQSt,
+  const evQSt = evPromptCount >= 1 ? 'pass' : 'partial';
+  const evScore = evPromptCount >= 1 ? 1 : (hasEv ? 0.5 : 0.35);
+  d4c.push({ label: 'evals.json 测试用例（≥1 条）', status: evQSt,
     detail: evPromptCount > 0
-      ? evPromptCount + ' 条用例'
-      : '官方：用例要真实具体（包含文件路径、公司名、个人背景等细节），而非抽象指令如"格式化数据"' });
-  d4t++; d4p += evQSt === 'pass' ? 1 : evQSt === 'partial' ? 0.5 : 0.1;
+      ? evPromptCount + ' 条用例（官方要求：用例要有具体细节——文件名、公司名、个人背景，而非"格式化数据"这类抽象指令）'
+      : '官方：至少提供 1 条真实场景 eval 用例即可起步；拥有 20 条（10 应触发+10 近似不触发）则可跑完整优化循环' });
+  d4t++; d4p += evScore;
 
   // 触发 eval
   d4c.push({ label: '触发精度测试字段（should_trigger）', status: evHasTrigger ? 'pass' : 'partial',
     detail: evHasTrigger
-      ? '含 should_trigger 字段，可与 description 优化循环（run_loop.py）配合使用'
-      : '官方有专门的 description 优化循环：生成 20 条应/不应触发的测试查询 → 60/40 train/test split → 自动迭代 5 轮优化' });
-  d4t++; d4p += evHasTrigger ? 1 : 0.2;
+      ? '含 should_trigger 字段，支持与 description 优化循环（train/test split → 5 轮迭代）配合使用'
+      : '可选加分项：在 evals.json 条目中加 should_trigger: true/false，用于自动评估 description 触发准确率' });
+  d4t++; d4p += evHasTrigger ? 1 : 0.3;
 
   // 渐进式加载（3 级架构）
-  const progSt = hasRef ? 'pass' : (lc <= 200 ? 'pass' : lc <= 400 ? 'partial' : 'fail');
+  // Level 1: frontmatter（始终在 context）
+  // Level 2: SKILL.md ≤500 行（触发时加载）← 单文件若符合此条即已合规
+  // Level 3: references/（仅在 SKILL.md > 500 行时必须）
+  const progSt = hasRef
+    ? 'pass'                                        // 有 references/ → 完整 3 层
+    : (hasFm && lc <= 500) ? 'pass'                // 有 frontmatter + ≤500 行 → 2 层足够
+    : (lc <= 700 ? 'partial' : 'fail');             // 超长但无 references/ → 需拆分
   d4c.push({ label: '渐进式加载设计（官方 3 层架构）', status: progSt,
     detail: progSt === 'pass'
-      ? '已通过 references/ 实现分层（① frontmatter ~100词 → ② SKILL.md <500行 → ③ 参考文档按需读取）'
-      : '官方建议：① frontmatter 约 100 词（始终在上下文）→ ② SKILL.md 主体 <500 行（触发时加载）→ ③ references/ 文档（按需读取，无限容量）' });
-  d4t++; d4p += progSt === 'pass' ? 1 : progSt === 'partial' ? 0.5 : 0.1;
+      ? (hasRef
+          ? '完整 3 层：frontmatter（~100词）→ SKILL.md（<500行）→ references/（按需）'
+          : 'frontmatter + SKILL.md ≤500 行，两层结构已符合规范（无需 references/）')
+      : '官方建议：① frontmatter 约 100 词（始终在上下文）→ ② SKILL.md <500 行（触发时加载）→ ③ references/ 文档（按需读取，SKILL.md 超长时必须拆分）' });
+  d4t++; d4p += progSt === 'pass' ? 1 : progSt === 'partial' ? 0.5 : 0.2;
 
-  // scripts/
-  d4c.push({ label: 'scripts/ 可复用脚本', status: hasSc ? 'pass' : 'partial',
+  // scripts/（可选，有则加分）
+  d4c.push({ label: 'scripts/ 可复用脚本（可选）', status: hasSc ? 'pass' : 'partial',
     detail: hasSc
-      ? allF.filter(f => f.startsWith('scripts/')).length + ' 个脚本（打包后跨调用复用，显著节省 token）'
-      : '官方：若多个测试用例中 agent 都会重写同类辅助脚本，应将其提取到 scripts/ 目录，一次编写跨调用共享' });
-  d4t++; d4p += hasSc ? 1 : 0.3;
+      ? allF.filter(f => f.startsWith(prefix + 'scripts/')).length + ' 个脚本（打包后跨调用复用，显著节省 token）'
+      : '可选加分：若多个测试用例中 agent 都会重写同类辅助脚本，建议提取到 scripts/ 复用' });
+  d4t++; d4p += hasSc ? 1 : 0.5;
 
   return {
     d1: { score: d1t > 0 ? d1p / d1t : 0, checks: d1c },

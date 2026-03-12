@@ -110,7 +110,7 @@
             <div class="prov-sub">coding.dashscope · 阿里云百炼</div>
           </div>
         </div>
-        <button class="btn btn-outline btn-sm use-btn" id="usebtn-glm5" onclick="activate('glm5')">激活</button>
+        <button class="btn btn-outline btn-sm use-btn" id="usebtn-glm5" onclick="activate('glm5'); saveAll()">激活并使用</button>
       </div>
       <div class="field-row">
         <label>API Key</label>
@@ -139,7 +139,7 @@
             <div class="prov-sub">DashScope · 阿里云百炼</div>
           </div>
         </div>
-        <button class="btn btn-outline btn-sm use-btn" id="usebtn-qwen" onclick="activate('qwen')">激活</button>
+        <button class="btn btn-outline btn-sm use-btn" id="usebtn-qwen" onclick="activate('qwen'); saveAll()">激活并使用</button>
       </div>
       <div class="field-row">
         <label>API Key</label>
@@ -168,7 +168,7 @@
             <div class="prov-sub">EulerAI · OpenAI-compatible</div>
           </div>
         </div>
-        <button class="btn btn-outline btn-sm use-btn" id="usebtn-gemini" onclick="activate('gemini')">激活</button>
+        <button class="btn btn-outline btn-sm use-btn" id="usebtn-gemini" onclick="activate('gemini'); saveAll()">激活并使用</button>
       </div>
       <div class="field-row">
         <label>API Key</label>
@@ -199,7 +199,7 @@
             <div class="prov-sub">api.githubcopilot.com · 需要订阅</div>
           </div>
         </div>
-        <button class="btn btn-outline btn-sm use-btn" id="usebtn-copilot" onclick="activate('copilot')">激活</button>
+        <button class="btn btn-outline btn-sm use-btn" id="usebtn-copilot" onclick="activate('copilot'); saveAll()">激活并使用</button>
       </div>
       <div class="info-note">
         <i class="bi bi-info-circle"></i> 需要 <strong>GitHub Personal Access Token</strong>（账号须有有效 Copilot 订阅）。
@@ -238,7 +238,7 @@
           <div class="prov-sub">任何兼容 OpenAI /v1/chat/completions API 格式的服务均可接入</div>
         </div>
       </div>
-      <button class="btn btn-outline btn-sm use-btn" id="usebtn-custom" onclick="activate('custom')">激活</button>
+        <button class="btn btn-outline btn-sm use-btn" id="usebtn-custom" onclick="activate('custom'); saveAll()">激活并使用</button>
     </div>
     <div class="g3" style="gap:12px">
       <div class="field-row">
@@ -338,7 +338,7 @@ function activate(provider) {
     var card = document.getElementById('pcard-' + p);
     var isThis = p === provider;
     btn.classList.toggle('is-active', isThis);
-    btn.textContent = isThis ? '✓ 当前' : '激活';
+    btn.textContent = isThis ? '✓ 当前' : '激活并使用';
     card.classList.toggle('is-active', isThis);
   });
   updateBanner(provider);
