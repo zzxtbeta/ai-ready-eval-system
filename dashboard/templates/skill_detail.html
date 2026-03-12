@@ -320,10 +320,12 @@ function onFilesLoaded() {
   document.getElementById('start-btn').disabled = false;
 }
 
-// ── Layer 1 analysis ──
+// ── Layer 1 analysis（对标 Anthropic 官方 skill-creator 质量标准）──
 const SKILL_L1_DIMS = [
-  { key: 'd1', name_zh: '结构合规',  weight: 20 },
-  { key: 'd2', name_zh: '指令质量',  weight: 22 },
+  { key: 'd1', name_zh: '文件结构',  weight: 15 },
+  { key: 'd2', name_zh: '触发描述',  weight: 35 },  // 官方首要机制
+  { key: 'd3', name_zh: '指令内容',  weight: 30 },
+  { key: 'd4', name_zh: '测试覆盖',  weight: 20 },
 ];
 
 function getSkillMd(files) {
@@ -340,101 +342,223 @@ function parseFrontmatter(content) {
 }
 
 function analyzeLayer1(files) {
-  const md   = getSkillMd(files);
-  const lines = md.split('\n');
-  const lc    = lines.length;
-  const allF  = Object.keys(files);
-  const fm    = parseFrontmatter(md);
+  const md    = getSkillMd(files);
+  const lines  = md.split('\n');
+  const lc     = lines.length;
+  const allF   = Object.keys(files);
+  const fm     = parseFrontmatter(md);
   const hasRef  = allF.some(f => f.startsWith('references/'));
   const hasEv   = allF.some(f => f.startsWith('evals/') || f.endsWith('evals.json'));
   const hasSc   = allF.some(f => f.startsWith('scripts/'));
 
-  // D1: Structure
-  const d1c = [];  let d1p = 0, d1t = 0;
+  // ── D1: 文件结构 ──────────────────────────────────────────────────────
+  const d1c = []; let d1p = 0, d1t = 0;
 
   const hasMd = !!md;
-  d1c.push({ label: 'SKILL.md 存在', status: hasMd ? 'pass' : 'fail',
-    detail: hasMd ? lc + ' 行' : '未找到 SKILL.md' });
+  d1c.push({ label: 'SKILL.md 文件存在', status: hasMd ? 'pass' : 'fail',
+    detail: hasMd ? lc + ' 行' : '未找到 SKILL.md，Skill 的必须主文件' });
   d1t++; d1p += hasMd ? 1 : 0;
 
-  const ls = lc < 30 ? 'fail' : lc < 80 ? 'partial' : lc > 1000 ? 'partial' : 'pass';
-  d1c.push({ label: '主文件行数合理', status: ls,
-    detail: lc + ' 行' + (lc < 30 ? '（过短，内容不完整）' : lc > 800 ? '（建议拆分至 references/）' : '') });
-  d1t++; d1p += ls === 'pass' ? 1 : ls === 'partial' ? 0.5 : 0;
-
   const hasFm = Object.keys(fm).length > 0;
-  d1c.push({ label: 'YAML frontmatter 完整', status: hasFm ? 'pass' : 'fail',
-    detail: hasFm ? '字段: ' + Object.keys(fm).slice(0,6).join(', ') : '未找到 ---...--- 格式的 frontmatter' });
+  d1c.push({ label: 'YAML frontmatter（---...---）', status: hasFm ? 'pass' : 'fail',
+    detail: hasFm ? '字段：' + Object.keys(fm).slice(0,6).join(', ')
+      : '未找到 frontmatter，name / description 等关键字段必须在此定义' });
   d1t++; d1p += hasFm ? 1 : 0;
 
   const nm = fm.name;
   d1c.push({ label: 'name 字段', status: nm ? 'pass' : 'partial',
-    detail: nm || '建议在 frontmatter 中添加 name 字段' });
-  d1t++; d1p += nm ? 1 : 0.5;
+    detail: nm ? '"' + nm + '"' : '建议在 frontmatter 添加 name 字段' });
+  d1t++; d1p += nm ? 1 : 0.4;
 
-  const dv = (fm.description || '');
-  const hdesc = dv.length > 20;
-  d1c.push({ label: 'description（>20字）', status: hdesc ? 'pass' : (dv ? 'partial' : 'fail'),
-    detail: hdesc ? dv.length + ' 字' : '缺失或过短，agent 需要靠 description 判断是否触发' });
-  d1t++; d1p += hdesc ? 1 : (dv ? 0.5 : 0);
+  // 官方明确：SKILL.md 最好 < 500 行；超出需用 references/ 分层
+  const lcSt = lc < 15 ? 'fail' : lc <= 500 ? 'pass' : lc <= 800 ? 'partial' : 'fail';
+  d1c.push({ label: 'SKILL.md 行数（官方推荐 ≤500 行）', status: lcSt,
+    detail: lc + ' 行' + (
+      lc < 15  ? '（过短，内容严重不足）' :
+      lc > 800 ? '（超限，必须将详细内容拆至 references/ 目录）' :
+      lc > 500 ? '（接近上限，建议将详细规范移至 references/）' : '（符合官方规范）') });
+  d1t++; d1p += lcSt === 'pass' ? 1 : lcSt === 'partial' ? 0.5 : 0;
 
-  d1c.push({ label: 'references/ 目录', status: hasRef ? 'pass' : 'partial',
-    detail: hasRef ? allF.filter(f => f.startsWith('references/')).length + ' 个参考文件' : '建议创建，将详细规范从 SKILL.md 中拆出' });
+  d1c.push({ label: 'references/ 参考文档目录', status: hasRef ? 'pass' : (lc > 300 ? 'partial' : 'partial'),
+    detail: hasRef
+      ? allF.filter(f => f.startsWith('references/')).length + ' 个参考文件（按需加载，保持主文件精简）'
+      : lc > 300 ? '行数较多，强烈建议将详细规范拆至 references/，主文件 < 300 行并加引导指针'
+      : '可选：将扩展文档放此目录实现渐进式加载（Anthropic 3 层架构）' });
   d1t++; d1p += hasRef ? 1 : 0.3;
 
-  d1c.push({ label: 'evals/ 测试用例', status: hasEv ? 'pass' : 'partial',
-    detail: hasEv ? '已有评估用例文件' : '建议创建 evals/ 目录，添加触发和功能测试用例' });
-  d1t++; d1p += hasEv ? 1 : 0.3;
+  // ── D2: 触发描述质量（官方最核心维度：description 是 THE primary triggering mechanism）──
+  const d2c = []; let d2p = 0, d2t = 0;
 
-  // D2: Instruction quality
-  const d2c = [];  let d2p = 0, d2t = 0;
+  const dv = (fm.description || '').trim();
+  const dvWords = dv ? dv.split(/\s+/).filter(Boolean).length : 0;
 
-  const imperPat = /\b(MUST|MUST NOT|SHALL NOT|SHOULD NOT|禁止|必须|不得|应当|不允许|严禁)\b/;
+  // 存在性
+  const descExSt = dv.length >= 15 ? 'pass' : (dv.length > 0 ? 'partial' : 'fail');
+  d2c.push({ label: 'description 字段存在', status: descExSt,
+    detail: dv.length > 0
+      ? dvWords + ' 词 · ' + dv.length + ' 字符'
+      : 'description 是 agent 判断是否调用 Skill 的唯一依据，必须存在且足够详细' });
+  d2t++; d2p += descExSt === 'pass' ? 1 : descExSt === 'partial' ? 0.3 : 0;
+
+  // 长度：官方示例约 50-150 词，需覆盖多种触发表达
+  const descLenSt = dvWords >= 50 ? 'pass' : dvWords >= 20 ? 'partial' : 'fail';
+  d2c.push({ label: 'description 长度（≥50 词）', status: descLenSt,
+    detail: dvWords + ' 词' + (
+      dvWords < 20 ? '（过短，官方建议约 100 词，覆盖多种触发场景和表达方式）' :
+      dvWords < 50 ? '（偏短，建议扩写至 50+ 词，包含不同措辞的触发场景）' : '（长度充足）') });
+  d2t++; d2p += descLenSt === 'pass' ? 1 : descLenSt === 'partial' ? 0.5 : 0;
+
+  // WHEN 语——官方要求 description 必须说明触发时机
+  const whenPat = /\b(use (this|when|if|for|whenever)|when (to|the user|you|a user)|trigger[s]? (when|if|on|for)|适用于|使用时|当用户|在.*时候|需要.*时|任何.*时候|凡是|遇到.*时|如果用户)/i;
+  const hasWhen = whenPat.test(dv);
+  d2c.push({ label: '包含"何时触发"（WHEN to use）', status: hasWhen ? 'pass' : 'partial',
+    detail: hasWhen
+      ? '已包含触发时机说明'
+      : '官方要求：description 必须说明 WHEN to use，不能只描述 WHAT it does。示例："Use when the user mentions X, even if they don\'t explicitly ask."' });
+  d2t++; d2p += hasWhen ? 1 : 0.1;
+
+  // Pushy 语气——官方原话："make the description a little bit pushy"（因 Claude 有 undertrigger 倾向）
+  const pushyPat = /\b(make sure to use|always use|use this whenever|use this skill whenever|use this for any|use this even if|don't forget to use|be sure to use|务必.*使用|确保.*使用|一定要.*调用|任何时候.*都.*用|不管.*都.*用)/i;
+  const isPushy  = pushyPat.test(dv);
+  d2c.push({ label: '"主动触发"语气（Pushy，官方必要）', status: isPushy ? 'pass' : 'partial',
+    detail: isPushy
+      ? '已包含主动触发语气'
+      : '官方原文："Claude tends to undertrigger. Make descriptions a little bit pushy." 建议加入："Make sure to use this skill whenever the user mentions [X], even if they don\'t explicitly ask for it."' });
+  d2t++; d2p += isPushy ? 1 : 0.2;
+
+  // WHAT + WHEN 同时兼顾
+  const whatPat = /\b(help[s]?|enable[s]?|allow[s]?|create[s]?|generate[s]?|build[s]?|convert[s]?|analyze[s]?|process|用于|帮助|生成|创建|实现|提供|处理|分析|转换)/i;
+  const hasWhat = whatPat.test(dv);
+  const bothWW  = hasWhat && hasWhen;
+  d2c.push({ label: '同时描述 WHAT 和 WHEN', status: bothWW ? 'pass' : (hasWhat || hasWhen ? 'partial' : 'fail'),
+    detail: bothWW
+      ? '既描述了功能（WHAT），也说明了触发时机（WHEN）——官方理想格式'
+      : (!hasWhat ? '缺少功能描述（WHAT this skill does）'
+        : '缺少触发时机描述（WHEN to use it）——不能只写功能，必须写清楚触发条件') });
+  d2t++; d2p += bothWW ? 1 : (hasWhat || hasWhen ? 0.4 : 0);
+
+  // ── D3: 指令内容质量 ───────────────────────────────────────────────────
+  const d3c = []; let d3p = 0, d3t = 0;
+
+  // 命令式规则密度
+  const imperPat = /\b(MUST|MUST NOT|SHALL NOT|SHOULD NOT|禁止|必须|不得|应当|不允许|严禁|始终|绝对不)\b/;
   const imperLines = lines.filter(l => imperPat.test(l));
   const density = lc > 0 ? imperLines.length / lc * 100 : 0;
   const rs = density < 1 ? 'fail' : density < 3 ? 'partial' : 'pass';
-  d2c.push({ label: '命令式规则密度', status: rs,
-    detail: imperLines.length + ' 条规则 · 每百行 ' + density.toFixed(1) + ' 条' + (rs === 'fail' ? '（偏少，agent 需要明确边界）' : '') });
-  d2t++; d2p += rs === 'pass' ? 1 : rs === 'partial' ? 0.5 : 0;
+  d3c.push({ label: '命令式规则密度（MUST / 必须）', status: rs,
+    detail: imperLines.length + ' 条规则 · 每百行 ' + density.toFixed(1) + ' 条'
+      + (rs === 'fail' ? '（偏少，agent 缺少明确行为边界，易自由发挥）' : '') });
+  d3t++; d3p += rs === 'pass' ? 1 : rs === 'partial' ? 0.5 : 0;
 
-  const exPat = /示例|[Ee]xample|例如|例：|💡|比如|样例/;
+  // "Why" 解释——官方原话："explain the why behind things; today's LLMs are smart"
+  const whyPat = /\b(because|so that|in order to|this (ensures|helps|prevents|allows)|to (ensure|prevent|avoid|maintain)|因为|这样可以|以确保|为了|这有助于|防止|避免)/i;
+  const whyLines = lines.filter(l => whyPat.test(l));
+  const whySt = whyLines.length >= 4 ? 'pass' : whyLines.length >= 1 ? 'partial' : 'fail';
+  d3c.push({ label: '解释规则背后的原因（Why）', status: whySt,
+    detail: whyLines.length + ' 处解释' + (
+      whySt === 'fail' ? '（官方："解释为什么重要，而非只写 MUST/NEVER。模型理解意图后能灵活处理边缘情况"）' :
+      whySt === 'partial' ? '（建议增加"因为/这样可以/以确保"式的理由说明）' : '（良好）') });
+  d3t++; d3p += whySt === 'pass' ? 1 : whySt === 'partial' ? 0.5 : 0;
+
+  // 具体示例——官方推荐格式："Input: X → Output: Y（not: Z）"
+  const exPat = /示例|[Ee]xample[s]?|例如|例：|💡|比如|样例|Input:|Output:|输入:|输出:|→|❌|✅/;
   const exLines = lines.filter(l => exPat.test(l));
-  const hasEx = exLines.length >= 2;
-  d2c.push({ label: '包含示例说明', status: hasEx ? 'pass' : 'partial',
-    detail: hasEx ? exLines.length + ' 处示例' : '建议至少 2 个具体示例帮助 agent 理解预期行为' });
-  d2t++; d2p += hasEx ? 1 : 0.3;
+  const exSt = exLines.length >= 3 ? 'pass' : exLines.length >= 1 ? 'partial' : 'fail';
+  d3c.push({ label: '包含具体示例（Input→Output 格式）', status: exSt,
+    detail: exLines.length + ' 处示例' + (
+      exSt === 'fail' ? '（官方推荐格式："Input: X → Output: Y（not: Z）"，每个核心场景至少一个）' :
+      exSt === 'partial' ? '（建议补充更多不同场景的示例）' : '') });
+  d3t++; d3p += exSt === 'pass' ? 1 : exSt === 'partial' ? 0.5 : 0;
 
-  const hasSect = lines.some(l => /^## /.test(l));
-  d2c.push({ label: '结构化分节（## 标题）', status: hasSect ? 'pass' : 'partial',
-    detail: hasSect ? '已有 Markdown heading 分节' : '建议用 ## 标题分节（触发条件 / 核心规则 / 输出格式 / 边界场景）' });
-  d2t++; d2p += hasSect ? 1 : 0.4;
+  // ## 分节
+  const h2Lines = lines.filter(l => /^## /.test(l));
+  const sectSt = h2Lines.length >= 3 ? 'pass' : h2Lines.length >= 1 ? 'partial' : 'fail';
+  d3c.push({ label: '结构化分节（## 标题）', status: sectSt,
+    detail: h2Lines.length + ' 个节'
+      + (sectSt === 'fail' ? '（建议用 ## 分节：触发条件 / 核心规则 / 输出格式 / 边界场景）' : '') });
+  d3t++; d3p += sectSt === 'pass' ? 1 : sectSt === 'partial' ? 0.6 : 0;
 
-  const edgePat = /边界|[Ee]dge|异常|例外|特殊情况|除非|当.*除外/;
+  // 边界/OOS 说明
+  const edgePat = /边界|[Ee]dge|异常|例外|特殊情况|除非|当.*除外|不适用|不要用于|out of scope|skip (if|when)/i;
   const hasEdge = lines.some(l => edgePat.test(l));
-  d2c.push({ label: '边界场景说明', status: hasEdge ? 'pass' : 'partial',
-    detail: hasEdge ? '包含边界/异常处理说明' : '建议明确说明特殊情况和例外处理，让 agent 遇到边缘情况时知道怎么做' });
-  d2t++; d2p += hasEdge ? 1 : 0.4;
+  d3c.push({ label: '边界与例外场景说明（Out of Scope）', status: hasEdge ? 'pass' : 'partial',
+    detail: hasEdge ? '已包含边界/例外处理说明' : '建议明确哪些情况不适用，防止 agent 在不该触发时触发，或不知道如何处理边缘情况' });
+  d3t++; d3p += hasEdge ? 1 : 0.3;
 
-  const clen = md.length;
-  const cs = clen < 500 ? 'fail' : clen < 2000 ? 'partial' : 'pass';
-  d2c.push({ label: '内容丰富度', status: cs,
-    detail: clen + ' 字符' + (cs === 'fail' ? '（过少）' : cs === 'partial' ? '（适中）' : '（丰富）') });
-  d2t++; d2p += cs === 'pass' ? 1 : cs === 'partial' ? 0.6 : 0.2;
+  // 内容丰富度
+  const clen = md.replace(/```[\s\S]*?```/g, '').replace(/^---[\s\S]*?---\n/, '').trim().length;
+  const richSt = clen < 500 ? 'fail' : clen < 1500 ? 'partial' : 'pass';
+  d3c.push({ label: '正文内容丰富度', status: richSt,
+    detail: clen + ' 字符（去代码块后）'
+      + (richSt === 'fail' ? '（过少，agent 缺乏足够上下文和规则指导）' : richSt === 'partial' ? '（适中）' : '（丰富）') });
+  d3t++; d3p += richSt === 'pass' ? 1 : richSt === 'partial' ? 0.6 : 0.2;
+
+  // ── D4: 测试覆盖（官方核心：draft → test → iterate loop）──────────────
+  const d4c = []; let d4p = 0, d4t = 0;
+
+  // evals/ 存在
+  d4c.push({ label: 'evals/ 测试用例目录', status: hasEv ? 'pass' : 'partial',
+    detail: hasEv
+      ? '已有评估用例文件'
+      : '官方建议：每个 Skill 应有 evals/evals.json，记录 2-3 个真实场景测试用例（"test - review - improve" 循环的基础）' });
+  d4t++; d4p += hasEv ? 1 : 0.1;
+
+  // evals.json 内容
+  const evFile = allF.find(f => f.endsWith('evals.json'));
+  let evPromptCount = 0, evHasTrigger = false;
+  if (evFile && files[evFile]) {
+    try {
+      const evData = JSON.parse(files[evFile]);
+      const arr = Array.isArray(evData) ? evData : (evData.evals || []);
+      evPromptCount = arr.length;
+      evHasTrigger  = arr.some(e => 'should_trigger' in e);
+    } catch(_) {}
+  }
+  const evQSt = evPromptCount >= 3 ? 'pass' : evPromptCount >= 1 ? 'partial' : (hasEv ? 'partial' : 'fail');
+  d4c.push({ label: 'evals.json 测试用例（≥3 条）', status: evQSt,
+    detail: evPromptCount > 0
+      ? evPromptCount + ' 条用例'
+      : '官方：用例要真实具体（包含文件路径、公司名、个人背景等细节），而非抽象指令如"格式化数据"' });
+  d4t++; d4p += evQSt === 'pass' ? 1 : evQSt === 'partial' ? 0.5 : 0.1;
+
+  // 触发 eval
+  d4c.push({ label: '触发精度测试字段（should_trigger）', status: evHasTrigger ? 'pass' : 'partial',
+    detail: evHasTrigger
+      ? '含 should_trigger 字段，可与 description 优化循环（run_loop.py）配合使用'
+      : '官方有专门的 description 优化循环：生成 20 条应/不应触发的测试查询 → 60/40 train/test split → 自动迭代 5 轮优化' });
+  d4t++; d4p += evHasTrigger ? 1 : 0.2;
+
+  // 渐进式加载（3 级架构）
+  const progSt = hasRef ? 'pass' : (lc <= 200 ? 'pass' : lc <= 400 ? 'partial' : 'fail');
+  d4c.push({ label: '渐进式加载设计（官方 3 层架构）', status: progSt,
+    detail: progSt === 'pass'
+      ? '已通过 references/ 实现分层（① frontmatter ~100词 → ② SKILL.md <500行 → ③ 参考文档按需读取）'
+      : '官方建议：① frontmatter 约 100 词（始终在上下文）→ ② SKILL.md 主体 <500 行（触发时加载）→ ③ references/ 文档（按需读取，无限容量）' });
+  d4t++; d4p += progSt === 'pass' ? 1 : progSt === 'partial' ? 0.5 : 0.1;
+
+  // scripts/
+  d4c.push({ label: 'scripts/ 可复用脚本', status: hasSc ? 'pass' : 'partial',
+    detail: hasSc
+      ? allF.filter(f => f.startsWith('scripts/')).length + ' 个脚本（打包后跨调用复用，显著节省 token）'
+      : '官方：若多个测试用例中 agent 都会重写同类辅助脚本，应将其提取到 scripts/ 目录，一次编写跨调用共享' });
+  d4t++; d4p += hasSc ? 1 : 0.3;
 
   return {
     d1: { score: d1t > 0 ? d1p / d1t : 0, checks: d1c },
     d2: { score: d2t > 0 ? d2p / d2t : 0, checks: d2c },
-    meta: { name: fm.name || '(未命名)', description: dv, lineCount: lc,
-            fileCount: allF.length, hasRef, hasEv, hasSc }
+    d3: { score: d3t > 0 ? d3p / d3t : 0, checks: d3c },
+    d4: { score: d4t > 0 ? d4p / d4t : 0, checks: d4c },
+    meta: { name: fm.name || '(未命名)', description: dv, descWords: dvWords,
+            lineCount: lc, fileCount: allF.length, hasRef, hasEv, hasSc }
   };
 }
 
 // ── Rendering helpers ──
 function gradeFor(s) {
-  if (s >= .85) return { g: 'A', n: '就绪',   c: 'var(--grade-a)' };
-  if (s >= .70) return { g: 'B', n: '可用',   c: 'var(--grade-b)' };
-  if (s >= .50) return { g: 'C', n: '脆弱',   c: 'var(--grade-c)' };
-  return           { g: 'D', n: '不可用', c: 'var(--grade-d)' };
+  if (s >= .85) return { g: 'A', n: '生产就绪', c: 'var(--grade-a)' };
+  if (s >= .70) return { g: 'B', n: '可用',     c: 'var(--grade-b)' };
+  if (s >= .50) return { g: 'C', n: '脆弱',     c: 'var(--grade-c)' };
+  return           { g: 'D', n: '不可用',  c: 'var(--grade-d)' };
 }
 function scolor(s) {
   return s >= .8 ? 'var(--pass)' : s >= .6 ? 'var(--partial)' : 'var(--fail)';
@@ -446,17 +570,24 @@ function sicon(st) {
 }
 
 function renderL1(result) {
-  const { d1, d2, meta } = result;
-  const dims = [ { ...SKILL_L1_DIMS[0], ...d1 }, { ...SKILL_L1_DIMS[1], ...d2 } ];
+  const { d1, d2, d3, d4, meta } = result;
+  const dims = [
+    { ...SKILL_L1_DIMS[0], ...d1 },
+    { ...SKILL_L1_DIMS[1], ...d2 },
+    { ...SKILL_L1_DIMS[2], ...d3 },
+    { ...SKILL_L1_DIMS[3], ...d4 },
+  ];
   const tw = SKILL_L1_DIMS.reduce((s, d) => s + d.weight, 0);
   const overall = dims.reduce((s, d) => s + d.score * d.weight, 0) / tw;
   const gi = gradeFor(overall);
 
   // Meta grid
+  const dvPreview = meta.description ? meta.description.substring(0, 60) + (meta.description.length > 60 ? '…' : '') : '—';
   document.getElementById('skill-meta').innerHTML = [
-    { label: '名称',        val: meta.name },
-    { label: '行数',        val: meta.lineCount + ' 行' },
-    { label: '文件数',      val: meta.fileCount + ' 个' },
+    { label: '名称',         val: meta.name },
+    { label: '行数',         val: meta.lineCount + ' 行' + (meta.lineCount > 500 ? ' ⚠' : '') },
+    { label: '文件数',       val: meta.fileCount + ' 个' },
+    { label: 'description', val: meta.descWords ? meta.descWords + ' 词' : '—' },
     { label: 'references/', val: meta.hasRef ? '<span style="color:var(--pass)">✓ 有</span>' : '<span style="color:var(--text-3)">✗ 无</span>' },
     { label: 'evals/',      val: meta.hasEv  ? '<span style="color:var(--pass)">✓ 有</span>' : '<span style="color:var(--text-3)">✗ 无</span>' },
     { label: 'scripts/',    val: meta.hasSc  ? '<span style="color:var(--pass)">✓ 有</span>' : '<span style="color:var(--text-3)">✗ 无</span>' },
@@ -534,16 +665,39 @@ function renderL1(result) {
     </div>`;
   }).join('');
 
-  // Recommendations
+  // Recommendations — based on Anthropic official criteria
   const recs = [];
-  if (!meta.hasRef) recs.push({ icon: 'bi-folder-plus', text: '创建 references/ 目录，将详细规范从 SKILL.md 中拆出，主文件保持 < 300 行并用引导语指向参考文档' });
-  if (!meta.hasEv)  recs.push({ icon: 'bi-clipboard-check', text: '创建 evals/ 目录，添加至少 3 个核心场景的触发测试用例（trigger_evals.json）和功能测试用例（evals.json）' });
-  if (d1.checks[4] && d1.checks[4].status !== 'pass')
-    recs.push({ icon: 'bi-pencil-square', text: '扩写 description 字段：需覆盖触发场景的多种表达方式，让 agent 在"用户没有明确说 X，但明显需要 X"时也能正确触发' });
-  if (d2.checks[0] && d2.checks[0].status !== 'pass')
-    recs.push({ icon: 'bi-list-check', text: '增加命令式规则（MUST/禁止/必须），每百行至少 3 条。规则过少时 agent 会自行发挥，导致输出不稳定' });
-  if (d2.checks[1] && d2.checks[1].status !== 'pass')
-    recs.push({ icon: 'bi-lightbulb', text: '添加具体示例，格式如"用户说：X → agent 应该：Y（不应该：Z）"，每个核心场景至少一个' });
+
+  // #1 最高优先级: description pushy + WHEN
+  if (d2.score < 0.7) {
+    if (!meta.description || meta.descWords < 20)
+      recs.push({ icon: 'bi-pencil-square', text: '【最高优先级】description 是 agent 调用 Skill 的唯一依据，但当前过短或缺失。建议扩写至 50-100 词，包含 WHAT（功能）和 WHEN（触发场景）两部分' });
+    else
+      recs.push({ icon: 'bi-megaphone', text: '【最高优先级】Anthropic 官方指出 Claude 有"undertrigger"倾向。在 description 末尾加入主动触发语，例如："Make sure to use this skill whenever the user mentions [X], even if they don\'t explicitly ask for it."' });
+  }
+
+  // #2 WHEN 缺失
+  const hasWhenCheck = d2.checks.find(c => c.label.includes('何时触发'));
+  if (hasWhenCheck && hasWhenCheck.status !== 'pass')
+    recs.push({ icon: 'bi-calendar-check', text: '补充"何时触发"说明（WHEN）到 description。官方例句：instead of "How to build a dashboard", write "…Make sure to use this skill whenever the user mentions dashboards or data visualization, even if they don\'t explicitly ask for a dashboard."' });
+
+  // #3 Why 解释不足
+  const whyCheck = d3.checks.find(c => c.label.includes('原因'));
+  if (whyCheck && whyCheck.status !== 'pass')
+    recs.push({ icon: 'bi-lightbulb', text: '官方："解释规则背后的原因，而非只写 MUST/NEVER。今天的 LLM 很聪明，理解意图后能灵活处理边缘情况。" 在关键规则后加 "because / 因为 / 这样可以" 式的理由说明' });
+
+  // #4 evals
+  if (!meta.hasEv)
+    recs.push({ icon: 'bi-clipboard-check', text: '创建 evals/evals.json，添加 2-3 个真实场景测试用例。官方要求：用例要有具体细节（文件路径、公司名、个人背景），而非"格式化数据"这类抽象指令' });
+
+  // #5 行数/references
+  if (meta.lineCount > 500 && !meta.hasRef)
+    recs.push({ icon: 'bi-folder-plus', text: '官方：SKILL.md 超过 500 行时必须将详细规范拆至 references/ 目录。浏览 skill-creator/SKILL.md 官方示例，参考其"Progressive Disclosure"三层加载设计' });
+
+  // #6 示例不足
+  const exCheck = d3.checks.find(c => c.label.includes('示例'));
+  if (exCheck && exCheck.status !== 'pass')
+    recs.push({ icon: 'bi-code-square', text: '添加 Input→Output 格式的具体示例。官方推荐格式："Input: <用户说的话> → Output: <agent 应该做的>（not: <不应该做的>）"，每个核心场景至少一个' });
 
   if (recs.length) {
     document.getElementById('rec-card').style.display = '';
@@ -688,11 +842,16 @@ async function runLayer2() {
     var genResp = await callLLM(pCfg, [
       {role: 'system', content: 'You are a strict JSON-outputting assistant. Return only valid JSON, no markdown fences.'},
       {role: 'user', content:
-        'Skill description: "' + description + '"\n\n' +
-        'Generate exactly 10 user messages that SHOULD trigger this skill and 10 that should NOT ' +
-        '(similar topic but asking for something else or out of scope).\n' +
-        'Return exactly this JSON, no extra text: ' +
-        '{"should":["...10 strings..."],"should_not":["...10 strings..."]}'}
+        'Skill description:\n"' + description + '"\n\n' +
+        'Generate exactly 10 SHOULD-trigger and 10 SHOULD-NOT-trigger user messages for evaluating this skill.\n\n' +
+        'CRITICAL quality requirements (Anthropic official guidelines):\n' +
+        '— Make every message REALISTIC and CONTEXTUAL. Include specific details: file names, column names, company names, dates, personal context, project names. Use casual speech, abbreviations, typos sometimes.\n' +
+        '— BAD (too abstract): "Create a chart", "Format this data", "Write a report"\n' +
+        '— GOOD (realistic): "my boss just emailed me this CSV (Q4_sales_FINAL_v2.csv) and needs a bar chart on revenue by region by EOD — col A=region, col C=revenue"\n' +
+        '— SHOULD-trigger (10): cover formal, casual, implicit phrasings — where user clearly needs this skill but may not explicitly name it\n' +
+        '— SHOULD-NOT-trigger (10): NEAR-MISSES only — same domain or similar keywords but actually requesting something outside this skill\'s scope. Do NOT use obviously irrelevant topics.\n\n' +
+        'Return exactly this JSON, no extra text:\n' +
+        '{"should":["...10 realistic strings..."],"should_not":["...10 near-miss strings..."]}'}
     ]);
     var genText  = genResp.choices[0].message.content.trim();
     var jsonMatch = genText.match(/\{[\s\S]*\}/);
