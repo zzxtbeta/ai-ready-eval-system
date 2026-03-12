@@ -203,26 +203,30 @@ MUST 始终..." style="
     </span>
     <span style="font-weight:600;font-size:14px">层次二：触发准确率测试</span>
     <span style="font-size:12px;color:var(--text-2)">验证 description 是否让 agent 在正确时机触发</span>
-    <span class="lock-tag">🔒 P1 功能</span>
   </div>
 
-  <div class="card coming-card mb-4">
-    <i class="bi bi-send-check-fill" style="font-size:32px;color:var(--text-3);display:block;margin-bottom:12px"></i>
+  <div class="card mb-4">
     <div style="font-size:14px;font-weight:600;margin-bottom:8px">触发准确率测试</div>
-    <div style="font-size:13px;color:var(--text-2);max-width:500px;margin:0 auto 20px;line-height:1.7">
+    <div style="font-size:13px;color:var(--text-2);margin-bottom:16px;line-height:1.7">
       自动生成 20 条测试 prompt（10 应触发 + 10 近似但不应触发），让 LLM 仅基于 description
       判断是否触发，计算准确率，定位 description 的覆盖盲区。
     </div>
     <div id="skill-l2-provider"
-      style="max-width:480px;margin:0 auto 16px;padding:10px 14px;
-             background:var(--bg-raised);border:1px solid var(--border);
+      style="padding:10px 14px;background:var(--bg-raised);border:1px solid var(--border);
              border-radius:8px;font-size:13px;color:var(--text-2);
-             display:flex;align-items:center;gap:8px">
+             display:flex;align-items:center;gap:8px;margin-bottom:14px">
       <i class="bi bi-hourglass"></i> 检测 LLM 配置中…
     </div>
-    <button class="btn btn-primary" disabled style="opacity:.45;cursor:not-allowed">
-      <i class="bi bi-cpu-fill"></i> 运行触发测试（即将上线）
-    </button>
+    <div id="l2-progress" style="display:none;font-size:13px;color:var(--text-2);
+      margin-bottom:12px;padding:10px 14px;background:var(--bg-raised);border-radius:8px">
+      <i class="bi bi-hourglass-split"></i> 初始化中…
+    </div>
+    <div>
+      <button id="l2-run-btn" class="btn btn-primary" disabled onclick="runLayer2()" style="min-width:220px">
+        <i class="bi bi-cpu-fill"></i> 运行触发测试
+      </button>
+    </div>
+    <div id="l2-results" style="display:none;margin-top:20px"></div>
   </div>
 
   <!-- Layer 3 -->
@@ -614,6 +618,186 @@ function resetEval() {
     }
   }
   renderProvider('skill-l2-provider');
+  // 如果已配置 LLM，启用 Layer 2 按钮
+  var _s2 = {};
+  try { _s2 = JSON.parse(localStorage.getItem('eval_llm_settings')) || {}; } catch(_) {}
+  var _a2 = _s2.activeProvider;
+  var _p2 = (_s2.providers || {})[_a2] || {};
+  if (_a2 && _p2.apiKey) {
+    var _btn2 = document.getElementById('l2-run-btn');
+    if (_btn2) _btn2.disabled = false;
+  }
 })();
+
+// ── Layer 2：触发准确率测试 ──────────────────────────────────────────
+
+async function callLLM(providerCfg, messages) {
+  var resp = await fetch('/api/llm-call', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({provider: providerCfg, messages: messages})
+  });
+  var data = await resp.json();
+  if (!resp.ok) {
+    throw new Error((data.error || 'LLM 调用失败')
+      + (data.detail ? '：' + data.detail.substring(0, 120) : ''));
+  }
+  return data;
+}
+
+async function runLayer2() {
+  var s = {};
+  try { s = JSON.parse(localStorage.getItem('eval_llm_settings')) || {}; } catch(_) {}
+  var active = s.activeProvider;
+  var pdata  = (s.providers || {})[active] || {};
+  if (!active || !pdata.apiKey) {
+    alert('请先在设置页面配置 LLM 提供商');
+    return;
+  }
+  var pCfg = {baseUrl: pdata.baseUrl, apiKey: pdata.apiKey, model: pdata.model};
+  if (active === 'copilot') pCfg.extraHeaders = {'Copilot-Integration-Id': 'vscode-chat'};
+
+  // 从已载入文件中提取 SKILL.md description
+  var md = '';
+  var keys = Object.keys(skillFiles);
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    if (k === 'SKILL.md' || k.toLowerCase().endsWith('/skill.md')) { md = skillFiles[k]; break; }
+  }
+  if (!md && keys.length > 0) md = skillFiles[keys[0]];
+
+  var descMatch = md.match(/^description\s*:\s*["']?(.+?)["']?\s*$/m)
+    || md.match(/description[：:]\s*(.+)/);
+  var description = descMatch ? descMatch[1].trim() : '';
+  if (!description || description.length < 10) {
+    alert('SKILL.md 中未找到 description 字段（长度需 ≥10 字），触发准确率测试需要该字段。');
+    return;
+  }
+
+  var btn        = document.getElementById('l2-run-btn');
+  var progressEl = document.getElementById('l2-progress');
+  var resultsEl  = document.getElementById('l2-results');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bi bi-hourglass-split"></i> 测试中…';
+  progressEl.style.display = '';
+  progressEl.innerHTML = '<i class="bi bi-hourglass-split"></i> 步骤 1/2：正在生成测试 prompt（需 10-40 秒）…';
+  resultsEl.style.display = 'none';
+
+  try {
+    // Step 1：生成 20 条测试用例
+    var genResp = await callLLM(pCfg, [
+      {role: 'system', content: 'You are a strict JSON-outputting assistant. Return only valid JSON, no markdown fences.'},
+      {role: 'user', content:
+        'Skill description: "' + description + '"\n\n' +
+        'Generate exactly 10 user messages that SHOULD trigger this skill and 10 that should NOT ' +
+        '(similar topic but asking for something else or out of scope).\n' +
+        'Return exactly this JSON, no extra text: ' +
+        '{"should":["...10 strings..."],"should_not":["...10 strings..."]}'}
+    ]);
+    var genText  = genResp.choices[0].message.content.trim();
+    var jsonMatch = genText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('LLM 未返回有效 JSON（生成阶段），请重试');
+    var testCases = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(testCases.should) || !Array.isArray(testCases.should_not))
+      throw new Error('测试用例 JSON 格式错误（缺少 should/should_not 数组）');
+    var should10    = testCases.should.slice(0, 10);
+    var shouldNot10 = testCases.should_not.slice(0, 10);
+
+    progressEl.innerHTML = '<i class="bi bi-hourglass-split"></i> 步骤 2/2：正在批量评估触发准确率…';
+
+    // Step 2：批量评估
+    var allMsgs   = should10.concat(shouldNot10);
+    var evalLines = allMsgs.map(function(m, i) { return (i + 1) + '. ' + m; }).join('\n');
+    var evalResp  = await callLLM(pCfg, [
+      {role: 'system', content: 'You are an AI skill router. Output only valid JSON array, no markdown.'},
+      {role: 'user', content:
+        'Skill description: "' + description + '"\n\n' +
+        'For each user message below, say YES if you would activate this skill, NO if not. Be strict.\n\n' +
+        evalLines + '\n\n' +
+        'Return only: [{"id":1,"trigger":"YES"},{"id":2,"trigger":"NO"},...]'}
+    ]);
+    var evalText  = evalResp.choices[0].message.content.trim();
+    var evalMatch = evalText.match(/\[[\s\S]*\]/);
+    if (!evalMatch) throw new Error('LLM 未返回有效 JSON 数组（评估阶段），请重试');
+    var evalResults = JSON.parse(evalMatch[0]);
+
+    // 计算准确率
+    var expected = should10.map(function() { return 'YES'; })
+                           .concat(shouldNot10.map(function() { return 'NO'; }));
+    var correct  = 0;
+    var rows = evalResults.map(function(r, i) {
+      var exp  = expected[i] || '';
+      var raw  = (r.trigger || '').toUpperCase();
+      var got  = raw.indexOf('YES') >= 0 ? 'YES' : 'NO';
+      var ok   = got === exp;
+      if (ok) correct++;
+      return {msg: allMsgs[i] || '', expected: exp, got: got, ok: ok, isShouldTrigger: i < should10.length};
+    });
+    // 补齐 LLM 返回不足 20 条的情况
+    while (rows.length < allMsgs.length) {
+      var ri = rows.length;
+      rows.push({msg: allMsgs[ri] || '', expected: expected[ri] || '', got: '?', ok: false, isShouldTrigger: ri < should10.length});
+    }
+
+    progressEl.style.display = 'none';
+    renderL2Results(correct / allMsgs.length, rows);
+
+  } catch(err) {
+    progressEl.innerHTML = '<span style="color:var(--fail)">'
+      + '<i class="bi bi-exclamation-triangle-fill"></i> 错误：' + err.message + '</span>';
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-cpu-fill"></i> 重新运行';
+}
+
+function renderL2Results(accuracy, rows) {
+  var el  = document.getElementById('l2-results');
+  el.style.display = '';
+  var pct   = Math.round(accuracy * 100);
+  var grade = pct >= 90 ? {g: 'A', c: 'var(--grade-a)', n: '优秀'}
+            : pct >= 70 ? {g: 'B', c: 'var(--grade-b)', n: '良好'}
+            : pct >= 50 ? {g: 'C', c: 'var(--grade-c)', n: '需优化'}
+            :             {g: 'D', c: 'var(--grade-d)', n: '差'};
+
+  var shouldRows    = rows.filter(function(r) { return  r.isShouldTrigger; });
+  var shouldNotRows = rows.filter(function(r) { return !r.isShouldTrigger; });
+  var okShould    = shouldRows.filter(function(r) { return r.ok; }).length;
+  var okShouldNot = shouldNotRows.filter(function(r) { return r.ok; }).length;
+
+  function rowHtml(r) {
+    return '<div class="chk" style="padding:6px 0;border-bottom:1px solid var(--border-soft)">'
+      + '<span class="chk-icon ' + (r.ok ? 'chk-pass' : 'chk-fail') + '">'
+      + '<i class="bi bi-' + (r.ok ? 'check-circle-fill' : 'x-circle-fill') + '"></i></span>'
+      + '<span style="font-size:12px;flex:1;line-height:1.4">' + (r.msg || '').replace(/</g, '&lt;') + '</span>'
+      + '<code style="font-size:11px;color:' + (r.ok ? 'var(--pass)' : 'var(--fail)') + ';margin-left:8px">'
+      + r.got + '</code></div>';
+  }
+
+  el.innerHTML =
+    '<div class="g12" style="margin-bottom:16px">'
+      + '<div class="card" style="text-align:center;padding:18px">'
+        + '<div class="score-big" style="color:' + grade.c + '">' + pct + '</div>'
+        + '<div class="score-label">触发准确率</div>'
+        + '<div style="margin-top:8px"><span class="grade grade-' + grade.g + '">'
+        + grade.g + ' · ' + grade.n + '</span></div>'
+      + '</div>'
+      + '<div class="card" style="padding:18px">'
+        + '<div class="card-title">测试明细</div>'
+        + '<div style="font-size:13px;line-height:2">'
+          + '<div>应触发正确：<strong style="color:var(--pass)">' + okShould + '/10</strong></div>'
+          + '<div>不应触发正确：<strong style="color:var(--pass)">' + okShouldNot + '/10</strong></div>'
+          + (pct < 80 ? '<div style="color:var(--partial);font-size:12px;margin-top:6px">'
+            + '<i class="bi bi-lightbulb"></i> 建议丰富 description，增加触发场景的多样化表述</div>' : '')
+        + '</div>'
+      + '</div>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+      + '<div><div class="card-title" style="margin-bottom:8px">应触发（10 条）</div>'
+        + shouldRows.map(rowHtml).join('') + '</div>'
+      + '<div><div class="card-title" style="margin-bottom:8px">不应触发（10 条）</div>'
+        + shouldNotRows.map(rowHtml).join('') + '</div>'
+    + '</div>';
+}
 </script>
 {% endblock %}

@@ -177,5 +177,105 @@ def skill_report_json():
     return jsonify(report)
 
 
+# ─────────────────────────────── LLM & Spec 代理接口 ───────────────
+
+@app.route("/api/llm-call", methods=["POST"])
+def llm_call():
+    """LLM 代理接口 —— 避免浏览器直接调用 LLM 的 CORS 限制。
+
+    请求体 JSON:
+        { provider: { baseUrl, apiKey, model, extraHeaders? }, messages: [...] }
+
+    API Key 仅做请求转发，服务端不存储。
+    """
+    import urllib.request as _ureq  # noqa: PLC0415
+    import urllib.error   as _uerr  # noqa: PLC0415
+    import ssl            as _ssl   # noqa: PLC0415
+
+    data = request.get_json(force=True, silent=True)
+    if not data or not isinstance(data, dict):
+        return jsonify({"error": "请求格式错误，需要 JSON 请求体"}), 400
+
+    provider   = data.get("provider") or {}
+    messages   = data.get("messages") or []
+    base_url   = str(provider.get("baseUrl")  or "").strip().rstrip("/")
+    api_key    = str(provider.get("apiKey")   or "").strip()
+    model      = str(provider.get("model")    or "").strip()
+    extra_hdrs = provider.get("extraHeaders") or {}
+
+    if not base_url or not api_key or not model:
+        return jsonify({"error": "缺少 provider 配置（baseUrl / apiKey / model）"}), 400
+
+    # 安全校验：仅允许 HTTPS，防止 SSRF 访问内网
+    if not base_url.startswith("https://"):
+        return jsonify({"error": "baseUrl 必须使用 HTTPS 协议"}), 400
+
+    endpoint = base_url + "/chat/completions"
+    payload  = json.dumps({
+        "model":       model,
+        "messages":    messages,
+        "max_tokens":  4096,
+        "temperature": 0.2,
+    }).encode("utf-8")
+
+    headers = {
+        "Content-Type":  "application/json",
+        "Authorization": "Bearer " + api_key,
+    }
+    for k, v in extra_hdrs.items():
+        headers[str(k)[:100]] = str(v)[:500]
+
+    try:
+        req = _ureq.Request(endpoint, data=payload, headers=headers, method="POST")
+        ctx = _ssl.create_default_context()
+        with _ureq.urlopen(req, timeout=90, context=ctx) as resp:
+            return app.response_class(resp.read(), status=200, mimetype="application/json")
+    except _uerr.HTTPError as exc:
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", errors="replace")[:500]
+        except Exception:
+            pass
+        return jsonify({"error": f"LLM 接口返回 HTTP {exc.code}", "detail": body}), 502
+    except Exception as exc:
+        return jsonify({"error": str(exc)[:300]}), 502
+
+
+@app.route("/api/fetch-spec")
+def fetch_spec():
+    """从远程 URL 获取 OpenAPI Spec 文件（代理，解决浏览器 CORS 限制）。
+
+    Query param: ?url=<spec URL>
+    返回: { content, content_type, url }
+    """
+    import urllib.request as _ureq  # noqa: PLC0415
+    import urllib.error   as _uerr  # noqa: PLC0415
+    import ssl            as _ssl   # noqa: PLC0415
+
+    raw_url = request.args.get("url", "").strip()
+    if not raw_url:
+        return jsonify({"error": "缺少 url 参数"}), 400
+    if not raw_url.startswith("http://") and not raw_url.startswith("https://"):
+        return jsonify({"error": "仅支持 http/https 协议"}), 400
+
+    try:
+        req = _ureq.Request(
+            raw_url,
+            headers={
+                "User-Agent": "AI-Ready-Eval/1.0",
+                "Accept":     "application/json, application/yaml, text/yaml, */*",
+            },
+        )
+        ctx = _ssl.create_default_context()
+        with _ureq.urlopen(req, timeout=20, context=ctx) as resp:
+            content_type = resp.headers.get("Content-Type", "text/plain")
+            content      = resp.read().decode("utf-8", errors="replace")
+            return jsonify({"content": content, "content_type": content_type, "url": raw_url})
+    except _uerr.HTTPError as exc:
+        return jsonify({"error": f"远端返回 HTTP {exc.code}"}), 502
+    except Exception as exc:
+        return jsonify({"error": str(exc)[:300]}), 502
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
