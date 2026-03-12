@@ -65,34 +65,15 @@ def _load_report(report_type: str) -> dict | None:
 
 
 def _load_trend_data() -> list[dict]:
-    """加载历史评估趋势数据。"""
-    demo_path = os.path.join(EXAMPLES_DIR, "demo_results", "trend_data.json")
-    if os.path.exists(demo_path):
+    """加载历史评估趋势数据（仅从真实报告文件读取，无 mock）。"""
+    trend_path = os.path.join(REPORTS_DIR, "trend_data.json")
+    if os.path.exists(trend_path):
         try:
-            with open(demo_path, "r", encoding="utf-8") as f:
+            with open(trend_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             pass
-    return _generate_mock_trend()
-
-
-def _generate_mock_trend() -> list[dict]:
-    """生成模拟趋势数据（演示用）。"""
-    import random
-    random.seed(42)
-    trend = []
-    base_api = 0.62
-    base_skill = 0.58
-    for i in range(8):
-        date = (datetime.datetime.now() - datetime.timedelta(weeks=7 - i)).strftime("%Y-%m-%d")
-        api_score = min(0.95, base_api + i * 0.04 + random.uniform(-0.02, 0.02))
-        skill_score = min(0.92, base_skill + i * 0.04 + random.uniform(-0.02, 0.02))
-        trend.append({
-            "date": date,
-            "api_score": round(api_score, 3),
-            "skill_score": round(skill_score, 3),
-        })
-    return trend
+    return []
 
 
 def _grade_info(score: float) -> dict:
@@ -121,27 +102,8 @@ def _skill_grade_info(score: float) -> dict:
 
 @app.route("/")
 def index():
-    """概览页：展示 API + Skill 综合得分与关键指标。"""
-    api_report = _load_report("api")
-    skill_report = _load_report("skill")
-    trend_data = _load_trend_data()
-
-    api_score = api_report.get("overall_score", 0) if api_report else 0
-    skill_score = skill_report.get("overall_score", 0) if skill_report else 0
-    is_demo = (api_report or {}).get("_is_demo", False)
-
-    return render_template(
-        "index.html",
-        api_report=api_report,
-        skill_report=skill_report,
-        api_score=api_score,
-        skill_score=skill_score,
-        api_grade=_grade_info(api_score),
-        skill_grade=_skill_grade_info(skill_score),
-        trend_data=json.dumps(trend_data),
-        is_demo=is_demo,
-        last_updated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-    )
+    """产品首页——两个评估入口 + 三层架构说明。"""
+    return render_template("index.html")
 
 
 @app.route("/api-eval")
@@ -171,6 +133,12 @@ def trends():
 def run_eval():
     """/run-eval 已合并到 /api-eval，此处重定向。"""
     return redirect(url_for("api_eval_detail"), code=301)
+
+
+@app.route("/settings")
+def settings_page():
+    """LLM 提供商配置页面（Key 保存在浏览器 localStorage，后端无感知）。"""
+    return render_template("settings.html")
 
 
 # ─────────────────────────────────────── JSON API endpoints ─────

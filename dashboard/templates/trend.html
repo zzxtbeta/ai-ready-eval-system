@@ -1,61 +1,51 @@
-{% extends "base.html" %}
+{%- extends "base.html" %}
 {% block title %}趋势分析 — AI-Ready Eval{% endblock %}
 {% block page_title %}趋势分析{% endblock %}
 
 {% block content %}
+{% if trend_table %}
 <div class="card mb-4">
   <div class="flex-between mb-3">
     <div style="font-size:14px;font-weight:600">评估得分趋势
-      <span style="font-size:12px;color:var(--text-3);font-weight:400;margin-left:6px">近 8 次评估历史</span>
+      <span style="font-size:12px;color:var(--text-3);font-weight:400;margin-left:6px">近 {{ trend_table|length }} 次评估历史</span>
     </div>
   </div>
   <canvas id="trendChart" height="80"></canvas>
 </div>
-
 <div class="card">
   <div style="font-size:14px;font-weight:600;margin-bottom:16px">历史评估数据</div>
   <div style="overflow-x:auto">
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead>
         <tr style="border-bottom:1px solid var(--border)">
-          <th style="padding:8px 12px;text-align:left;color:var(--text-3);font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase">日期</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text-3);font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase">API 得分</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text-3);font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase">API 等级</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text-3);font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase">Skill 得分</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text-3);font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase">Skill 等级</th>
-          <th style="padding:8px 12px;text-align:center;color:var(--text-3);font-weight:600;font-size:11px;letter-spacing:.8px;text-transform:uppercase">变化</th>
+          <th style="padding:8px 12px;text-align:left;color:var(--text-3);font-size:11px;text-transform:uppercase">日期</th>
+          <th style="padding:8px 12px;text-align:center;color:var(--text-3);font-size:11px;text-transform:uppercase">API 得分</th>
+          <th style="padding:8px 12px;text-align:center;color:var(--text-3);font-size:11px;text-transform:uppercase">API 等级</th>
+          <th style="padding:8px 12px;text-align:center;color:var(--text-3);font-size:11px;text-transform:uppercase">Skill 得分</th>
+          <th style="padding:8px 12px;text-align:center;color:var(--text-3);font-size:11px;text-transform:uppercase">Skill 等级</th>
+          <th style="padding:8px 12px;text-align:center;color:var(--text-3);font-size:11px;text-transform:uppercase">变化</th>
         </tr>
       </thead>
       <tbody>
         {% for i, row in enumerate(trend_table) %}
         {% set api_pct = (row.api_score * 100)|int %}
         {% set skill_pct = (row.skill_score * 100)|int %}
-        {% set api_grade = 'A' if row.api_score >= 0.85 else ('B' if row.api_score >= 0.70 else ('C' if row.api_score >= 0.50 else 'D')) %}
-        {% set skill_grade = 'A' if row.skill_score >= 0.85 else ('B' if row.skill_score >= 0.70 else ('C' if row.skill_score >= 0.50 else 'D')) %}
-        {% set api_bar_c = 'var(--pass)' if row.api_score >= 0.85 else ('var(--grade-b)' if row.api_score >= 0.70 else ('var(--partial)' if row.api_score >= 0.50 else 'var(--fail)')) %}
-        {% set skill_bar_c = 'var(--pass)' if row.skill_score >= 0.85 else ('var(--grade-b)' if row.skill_score >= 0.70 else ('var(--partial)' if row.skill_score >= 0.50 else 'var(--fail)')) %}
+        {% set ag = "A" if row.api_score >= 0.85 else ("B" if row.api_score >= 0.70 else ("C" if row.api_score >= 0.50 else "D")) %}
+        {% set sg = "A" if row.skill_score >= 0.85 else ("B" if row.skill_score >= 0.70 else ("C" if row.skill_score >= 0.50 else "D")) %}
+        {% set ac = "var(--pass)" if row.api_score >= 0.85 else ("var(--grade-b)" if row.api_score >= 0.70 else ("var(--partial)" if row.api_score >= 0.50 else "var(--fail)")) %}
+        {% set sc = "var(--pass)" if row.skill_score >= 0.85 else ("var(--grade-b)" if row.skill_score >= 0.70 else ("var(--partial)" if row.skill_score >= 0.50 else "var(--fail)")) %}
         <tr style="border-bottom:1px solid var(--border-soft){% if loop.last %};border-bottom:none{% endif %}">
-          <td style="padding:10px 12px">
-            <span class="mono" style="color:var(--text-2)">{{ row.date }}</span>
-          </td>
-          <td style="padding:10px 12px;text-align:center">
-            <span class="mono" style="font-weight:600;color:{{ api_bar_c }}">{{ api_pct }}</span>
-          </td>
-          <td style="padding:10px 12px;text-align:center">
-            <span class="grade grade-{{ api_grade }}">{{ api_grade }}</span>
-          </td>
-          <td style="padding:10px 12px;text-align:center">
-            <span class="mono" style="font-weight:600;color:{{ skill_bar_c }}">{{ skill_pct }}</span>
-          </td>
-          <td style="padding:10px 12px;text-align:center">
-            <span class="grade grade-{{ skill_grade }}">{{ skill_grade }}</span>
-          </td>
+          <td style="padding:10px 12px"><span class="mono" style="color:var(--text-2)">{{ row.date }}</span></td>
+          <td style="padding:10px 12px;text-align:center"><span class="mono" style="font-weight:600;color:{{ ac }}">{{ api_pct }}</span></td>
+          <td style="padding:10px 12px;text-align:center"><span class="grade grade-{{ ag }}">{{ ag }}</span></td>
+          <td style="padding:10px 12px;text-align:center"><span class="mono" style="font-weight:600;color:{{ sc }}">{{ skill_pct }}</span></td>
+          <td style="padding:10px 12px;text-align:center"><span class="grade grade-{{ sg }}">{{ sg }}</span></td>
           <td style="padding:10px 12px;text-align:center">
             {% if i > 0 %}
               {% set prev = trend_table[i-1] %}
               {% set diff = ((row.api_score - prev.api_score) * 100)|round(1) %}
-              {% if diff > 0 %}<span style="color:var(--pass);font-family:var(--mono);font-size:12px">▲ {{ diff }}</span>
-              {% elif diff < 0 %}<span style="color:var(--fail);font-family:var(--mono);font-size:12px">▼ {{ diff|abs }}</span>
+              {% if diff > 0 %}<span style="color:var(--pass);font-family:var(--mono);font-size:12px">+{{ diff }}</span>
+              {% elif diff < 0 %}<span style="color:var(--fail);font-family:var(--mono);font-size:12px">-{{ diff|abs }}</span>
               {% else %}<span style="color:var(--text-3)">—</span>{% endif %}
             {% else %}<span style="color:var(--text-3);font-size:12px">基线</span>{% endif %}
           </td>
@@ -65,71 +55,45 @@
     </table>
   </div>
 </div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-state-icon"><i class="bi bi-graph-up"></i></div>
+  <h2>暂无历史数据</h2>
+  <p>完成 Skill 或 API 评估后，历史趋势将自动显示在这里。</p>
+  <div style="display:flex;gap:10px;justify-content:center">
+    <a href="/skill-eval" class="btn btn-primary"><i class="bi bi-lightning-fill"></i> 评估 Skill</a>
+    <a href="/api-eval" class="btn btn-outline"><i class="bi bi-plug-fill"></i> 测试 API</a>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_scripts %}
+{% if trend_table %}
 <script>
-const trendData = {{ trend_data|safe }};
-const labels = trendData.map(d => d.date);
-const apiScores = trendData.map(d => Math.round(d.api_score * 100));
-const skillScores = trendData.map(d => Math.round(d.skill_score * 100));
-
+const td = {{ trend_data|safe }};
 new Chart(document.getElementById('trendChart'), {
   type: 'line',
-  data: {
-    labels,
-    datasets: [
-      {
-        label: 'API AI-Readiness',
-        data: apiScores,
-        borderColor: '#6366f1',
-        backgroundColor: 'rgba(99,102,241,.1)',
-        tension: 0.4, fill: true,
-        pointRadius: 5, pointHoverRadius: 7,
-        pointBackgroundColor: '#6366f1',
-      },
-      {
-        label: 'Skill Quality',
-        data: skillScores,
-        borderColor: '#a78bfa',
-        backgroundColor: 'rgba(167,139,250,.08)',
-        tension: 0.4, fill: true,
-        pointRadius: 5, pointHoverRadius: 7,
-        pointBackgroundColor: '#a78bfa',
-      },
-      {
-        label: 'Agent-Ready 阈值 (85)',
-        data: Array(labels.length).fill(85),
-        borderColor: 'rgba(34,197,94,.5)',
-        borderDash: [6, 4],
-        borderWidth: 1.5,
-        pointRadius: 0,
-        fill: false,
-      },
-    ]
-  },
+  data: { labels: td.map(d=>d.date), datasets: [
+    { label:'API AI-Readiness', data:td.map(d=>Math.round(d.api_score*100)),
+      borderColor:'#6366f1', backgroundColor:'rgba(99,102,241,.1)',
+      tension:0.4, fill:true, pointRadius:5, pointBackgroundColor:'#6366f1' },
+    { label:'Skill Quality', data:td.map(d=>Math.round(d.skill_score*100)),
+      borderColor:'#a78bfa', backgroundColor:'rgba(167,139,250,.08)',
+      tension:0.4, fill:true, pointRadius:5, pointBackgroundColor:'#a78bfa' },
+    { label:'Agent-Ready 85', data:Array(td.length).fill(85),
+      borderColor:'rgba(34,197,94,.5)', borderDash:[6,4],
+      borderWidth:1.5, pointRadius:0, fill:false }
+  ]},
   options: {
-    responsive: true,
-    interaction: { mode: 'index', intersect: false },
-    plugins: {
-      legend: {
-        position: 'top',
-        labels: { color: '#94a3b8', font: { size: 11, family: 'Noto Sans SC' }, boxWidth: 12 }
-      },
-      tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw}` } },
-    },
-    scales: {
-      y: {
-        min: 0, max: 100,
-        grid: { color: 'rgba(42,42,62,.6)' },
-        ticks: { color: '#64748b', font: { size: 11 }, callback: v => v },
-      },
-      x: {
-        grid: { display: false },
-        ticks: { color: '#64748b', font: { size: 11 } },
-      },
-    },
+    responsive:true, interaction:{mode:'index',intersect:false},
+    plugins:{ legend:{position:'top',labels:{color:'#94a3b8',font:{size:11},boxWidth:12}} },
+    scales:{
+      y:{min:0,max:100,grid:{color:'rgba(42,42,62,.6)'},ticks:{color:'#64748b',font:{size:11}}},
+      x:{grid:{display:false},ticks:{color:'#64748b',font:{size:11}}}
+    }
   }
 });
 </script>
+{% endif %}
 {% endblock %}

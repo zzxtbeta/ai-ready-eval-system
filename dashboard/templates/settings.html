@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+{% block title %}LLM 设置 — AI-Ready Eval{% endblock %}
+{% block page_title %}LLM 设置{% endblock %}
+
+{% block extra_head %}
+<style>
+  .provider-card { transition: border-color .2s, box-shadow .2s; }
+  .provider-card.is-active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(99,102,241,.25);
+  }
+  .prov-header {
+    display: flex; align-items: flex-start;
+    justify-content: space-between; margin-bottom: 14px;
+  }
+  .prov-icon {
+    width: 34px; height: 34px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; flex-shrink: 0;
+  }
+  .prov-name { font-size: 14px; font-weight: 700; line-height: 1.2; }
+  .prov-sub  { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+  .field-row { margin-bottom: 10px; }
+  .field-row label {
+    font-size: 10px; color: var(--text-3); display: block;
+    margin-bottom: 4px; font-weight: 700;
+    letter-spacing: .8px; text-transform: uppercase;
+  }
+  .field-row input, .field-row select {
+    width: 100%; background: var(--bg-raised); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 7px 10px;
+    font-family: var(--mono); font-size: 12px; outline: none;
+    transition: border-color .15s;
+  }
+  .field-row input:focus, .field-row select:focus { border-color: var(--accent); }
+  .key-row { display: flex; gap: 6px; }
+  .key-row input { flex: 1; }
+  .eye-btn {
+    background: var(--bg-raised); border: 1px solid var(--border);
+    color: var(--text-3); border-radius: 6px;
+    padding: 0 10px; cursor: pointer; flex-shrink: 0;
+    transition: all .15s; font-size: 13px;
+  }
+  .eye-btn:hover { color: var(--text); border-color: var(--accent); }
+  .use-btn { font-size: 11px; padding: 4px 10px; white-space: nowrap; min-width: 54px; }
+  .use-btn.is-active {
+    background: rgba(99,102,241,.15); color: var(--accent-h);
+    border-color: rgba(99,102,241,.35); font-weight: 600;
+  }
+  .info-note {
+    background: rgba(99,102,241,.07); border: 1px solid rgba(99,102,241,.15);
+    border-radius: 6px; padding: 8px 10px;
+    font-size: 12px; color: var(--accent-h);
+    margin-bottom: 12px; line-height: 1.65;
+  }
+  .save-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--pass); flex-shrink: 0;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:860px">
+
+  <!-- Top bar -->
+  <div class="flex-between mb-4">
+    <div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:4px">LLM 提供商配置</div>
+      <div style="font-size:13px;color:var(--text-2);line-height:1.7">
+        配置一次，Skill 评估和 API 测试的 Layer 2 / 3 自动读取。<br>
+        Key 仅存储在<strong>本地浏览器 localStorage</strong>，不会发送至任何服务器。
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+      <span id="save-status" style="font-size:12px;color:var(--pass);display:none;align-items:center;gap:5px">
+        <span class="save-dot"></span> 已保存
+      </span>
+      <button class="btn btn-primary" onclick="saveAll()">
+        <i class="bi bi-floppy2-fill"></i> 保存设置
+      </button>
+    </div>
+  </div>
+
+  <!-- Active provider status -->
+  <div class="card mb-4" style="display:flex;align-items:center;gap:12px;padding:14px 18px">
+    <div style="flex:1">
+      <div style="font-size:10px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px">
+        当前激活的提供商
+      </div>
+      <div id="active-banner" style="font-size:14px;font-weight:600;color:var(--text-2)">
+        未配置 — 请点击提供商卡片中的「激活」按钮
+      </div>
+    </div>
+    <a href="/skill-eval" class="btn btn-outline btn-sm" style="flex-shrink:0">
+      <i class="bi bi-lightning-fill"></i> 去评估
+    </a>
+  </div>
+
+  <!-- Provider grid 2×2 -->
+  <div class="g2" style="gap:16px;margin-bottom:16px">
+
+    <!-- GLM-5 -->
+    <div class="card provider-card" id="pcard-glm5">
+      <div class="prov-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="prov-icon" style="background:rgba(34,197,94,.1)">🟢</div>
+          <div>
+            <div class="prov-name">GLM-5</div>
+            <div class="prov-sub">coding.dashscope · 阿里云百炼</div>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm use-btn" id="usebtn-glm5" onclick="activate('glm5')">激活</button>
+      </div>
+      <div class="field-row">
+        <label>API Key</label>
+        <div class="key-row">
+          <input type="password" id="glm5-key" placeholder="sk-..." autocomplete="new-password" spellcheck="false">
+          <button class="eye-btn" onclick="toggleKey('glm5-key',this)"><i class="bi bi-eye"></i></button>
+        </div>
+      </div>
+      <div class="field-row">
+        <label>Base URL</label>
+        <input type="text" id="glm5-url" value="https://coding.dashscope.aliyuncs.com/v1">
+      </div>
+      <div class="field-row">
+        <label>模型</label>
+        <input type="text" id="glm5-model" value="glm-5">
+      </div>
+    </div>
+
+    <!-- Qwen -->
+    <div class="card provider-card" id="pcard-qwen">
+      <div class="prov-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="prov-icon" style="background:rgba(99,102,241,.1)">🔵</div>
+          <div>
+            <div class="prov-name">Qwen / 通义千问</div>
+            <div class="prov-sub">DashScope · 阿里云百炼</div>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm use-btn" id="usebtn-qwen" onclick="activate('qwen')">激活</button>
+      </div>
+      <div class="field-row">
+        <label>API Key</label>
+        <div class="key-row">
+          <input type="password" id="qwen-key" placeholder="sk-..." autocomplete="new-password" spellcheck="false">
+          <button class="eye-btn" onclick="toggleKey('qwen-key',this)"><i class="bi bi-eye"></i></button>
+        </div>
+      </div>
+      <div class="field-row">
+        <label>Base URL</label>
+        <input type="text" id="qwen-url" value="https://dashscope.aliyuncs.com/compatible-mode/v1">
+      </div>
+      <div class="field-row">
+        <label>模型</label>
+        <input type="text" id="qwen-model" value="qwen3.5-plus">
+      </div>
+    </div>
+
+    <!-- Gemini via EulerAI -->
+    <div class="card provider-card" id="pcard-gemini">
+      <div class="prov-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="prov-icon" style="background:rgba(59,130,246,.1)">💠</div>
+          <div>
+            <div class="prov-name">Gemini</div>
+            <div class="prov-sub">EulerAI · OpenAI-compatible</div>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm use-btn" id="usebtn-gemini" onclick="activate('gemini')">激活</button>
+      </div>
+      <div class="field-row">
+        <label>API Key</label>
+        <div class="key-row">
+          <input type="password" id="gemini-key" placeholder="..." autocomplete="new-password" spellcheck="false">
+          <button class="eye-btn" onclick="toggleKey('gemini-key',this)"><i class="bi bi-eye"></i></button>
+        </div>
+      </div>
+      <div class="field-row">
+        <label>Base URL</label>
+        <input type="text" id="gemini-url" value="https://llm.eulerai.au">
+      </div>
+      <div class="field-row">
+        <label>模型</label>
+        <input type="text" id="gemini-model" value="gemini-3-flash-preview">
+      </div>
+    </div>
+
+    <!-- GitHub Copilot -->
+    <div class="card provider-card" id="pcard-copilot">
+      <div class="prov-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="prov-icon" style="background:rgba(148,163,184,.08)">
+            <i class="bi bi-github" style="font-size:17px;color:var(--text)"></i>
+          </div>
+          <div>
+            <div class="prov-name">GitHub Copilot</div>
+            <div class="prov-sub">api.githubcopilot.com · 需要订阅</div>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm use-btn" id="usebtn-copilot" onclick="activate('copilot')">激活</button>
+      </div>
+      <div class="info-note">
+        <i class="bi bi-info-circle"></i> 需要 <strong>GitHub Personal Access Token</strong>（账号须有有效 Copilot 订阅）。
+        在 GitHub → Settings → Developer settings → Personal access tokens 中生成（classic 或 fine-grained 均可）。
+      </div>
+      <div class="field-row">
+        <label>GitHub PAT</label>
+        <div class="key-row">
+          <input type="password" id="copilot-key" placeholder="ghp_..." autocomplete="new-password" spellcheck="false">
+          <button class="eye-btn" onclick="toggleKey('copilot-key',this)"><i class="bi bi-eye"></i></button>
+        </div>
+      </div>
+      <div class="field-row">
+        <label>模型</label>
+        <select id="copilot-model" style="width:100%;background:var(--bg-raised);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:12px;outline:none;font-family:var(--mono)">
+          <option value="gpt-4.1">gpt-4.1（推荐）</option>
+          <option value="gpt-4o">gpt-4o</option>
+          <option value="claude-3.7-sonnet">claude-3.7-sonnet</option>
+          <option value="o3-mini">o3-mini</option>
+          <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+        </select>
+      </div>
+    </div>
+
+  </div><!-- /g2 -->
+
+  <!-- Custom provider (full width) -->
+  <div class="card mb-4 provider-card" id="pcard-custom">
+    <div class="prov-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="prov-icon" style="background:rgba(100,116,139,.1)">
+          <i class="bi bi-wrench" style="font-size:16px;color:var(--text-2)"></i>
+        </div>
+        <div>
+          <div class="prov-name">自定义 OpenAI-compatible 提供商</div>
+          <div class="prov-sub">任何兼容 OpenAI /v1/chat/completions API 格式的服务均可接入</div>
+        </div>
+      </div>
+      <button class="btn btn-outline btn-sm use-btn" id="usebtn-custom" onclick="activate('custom')">激活</button>
+    </div>
+    <div class="g3" style="gap:12px">
+      <div class="field-row">
+        <label>API Key</label>
+        <div class="key-row">
+          <input type="password" id="custom-key" placeholder="sk-..." autocomplete="new-password" spellcheck="false">
+          <button class="eye-btn" onclick="toggleKey('custom-key',this)"><i class="bi bi-eye"></i></button>
+        </div>
+      </div>
+      <div class="field-row">
+        <label>Base URL</label>
+        <input type="text" id="custom-url" placeholder="https://api.example.com/v1">
+      </div>
+      <div class="field-row">
+        <label>模型名称</label>
+        <input type="text" id="custom-model" placeholder="model-name">
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom actions -->
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <button class="btn btn-primary" onclick="saveAll()">
+      <i class="bi bi-floppy2-fill"></i> 保存所有设置
+    </button>
+    <button class="btn btn-outline" onclick="clearAll()"
+            style="color:var(--fail);border-color:rgba(239,68,68,.25)">
+      <i class="bi bi-trash3"></i> 清除所有配置
+    </button>
+    <span style="font-size:12px;color:var(--text-3);margin-left:4px">
+      <i class="bi bi-shield-check"></i> Key 仅保存在本地，不经过服务器
+    </span>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const SK = 'eval_llm_settings';
+const PROVIDERS = ['glm5', 'qwen', 'gemini', 'copilot', 'custom'];
+const PROV_NAMES = {
+  glm5:    'GLM-5 (DashScope)',
+  qwen:    'Qwen / 通义千问',
+  gemini:  'Gemini (EulerAI)',
+  copilot: 'GitHub Copilot',
+  custom:  '自定义提供商'
+};
+const DEFAULTS = {
+  providers: {
+    glm5:    { apiKey: '', baseUrl: 'https://coding.dashscope.aliyuncs.com/v1',              model: 'glm-5' },
+    qwen:    { apiKey: '', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',     model: 'qwen3.5-plus' },
+    gemini:  { apiKey: '', baseUrl: 'https://llm.eulerai.au',                                 model: 'gemini-3-flash-preview' },
+    copilot: { apiKey: '', baseUrl: 'https://api.githubcopilot.com',                          model: 'gpt-4.1',
+               extraHeaders: { 'Copilot-Integration-Id': 'vscode-chat' } },
+    custom:  { apiKey: '', baseUrl: '', model: '' }
+  }
+};
+
+function loadSettings() {
+  try { return JSON.parse(localStorage.getItem(SK)) || {}; }
+  catch { return {}; }
+}
+
+function v(id) {
+  var el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+
+function saveAll() {
+  var active = null;
+  PROVIDERS.forEach(function(p) {
+    if (document.getElementById('usebtn-' + p).classList.contains('is-active')) active = p;
+  });
+  var data = {
+    activeProvider: active,
+    providers: {
+      glm5:    { apiKey: v('glm5-key'),    baseUrl: v('glm5-url')    || DEFAULTS.providers.glm5.baseUrl,    model: v('glm5-model')    || DEFAULTS.providers.glm5.model },
+      qwen:    { apiKey: v('qwen-key'),    baseUrl: v('qwen-url')    || DEFAULTS.providers.qwen.baseUrl,    model: v('qwen-model')    || DEFAULTS.providers.qwen.model },
+      gemini:  { apiKey: v('gemini-key'),  baseUrl: v('gemini-url')  || DEFAULTS.providers.gemini.baseUrl,  model: v('gemini-model')  || DEFAULTS.providers.gemini.model },
+      copilot: { apiKey: v('copilot-key'), baseUrl: 'https://api.githubcopilot.com',
+                 model: v('copilot-model') || 'gpt-4.1',
+                 extraHeaders: { 'Copilot-Integration-Id': 'vscode-chat' } },
+      custom:  { apiKey: v('custom-key'),  baseUrl: v('custom-url'),  model: v('custom-model') }
+    }
+  };
+  localStorage.setItem(SK, JSON.stringify(data));
+  var st = document.getElementById('save-status');
+  st.style.display = 'inline-flex';
+  setTimeout(function() { st.style.display = 'none'; }, 2500);
+  updateBanner(active);
+}
+
+function activate(provider) {
+  PROVIDERS.forEach(function(p) {
+    var btn  = document.getElementById('usebtn-' + p);
+    var card = document.getElementById('pcard-' + p);
+    var isThis = p === provider;
+    btn.classList.toggle('is-active', isThis);
+    btn.textContent = isThis ? '✓ 当前' : '激活';
+    card.classList.toggle('is-active', isThis);
+  });
+  updateBanner(provider);
+}
+
+function updateBanner(active) {
+  var el = document.getElementById('active-banner');
+  if (active && PROV_NAMES[active]) {
+    el.innerHTML = '<i class="bi bi-check-circle-fill" style="color:var(--pass);margin-right:6px"></i>'
+      + '<span style="color:var(--text)">' + PROV_NAMES[active] + '</span>';
+  } else {
+    el.innerHTML = '<span style="color:var(--text-3)">未配置 — 请点击提供商卡片中的「激活」按钮</span>';
+  }
+}
+
+function toggleKey(id, btn) {
+  var inp = document.getElementById(id);
+  var showing = inp.type === 'text';
+  inp.type = showing ? 'password' : 'text';
+  btn.querySelector('i').className = showing ? 'bi bi-eye' : 'bi bi-eye-slash';
+}
+
+function clearAll() {
+  if (!confirm('确认清除所有 API Key 和设置？此操作不可恢复。')) return;
+  localStorage.removeItem(SK);
+  location.reload();
+}
+
+// ── Init: populate from localStorage ──
+window.addEventListener('DOMContentLoaded', function() {
+  var s = loadSettings();
+  var p = s.providers || {};
+
+  function fill(prov, items) {
+    var pd = p[prov] || {};
+    items.forEach(function(row) {
+      var el = document.getElementById(row[0]);
+      if (!el) return;
+      var val = pd[row[1]];
+      if (val == null || val === '') val = DEFAULTS.providers[prov] ? (DEFAULTS.providers[prov][row[1]] || '') : '';
+      // For API key, only fill if there's a real saved value (don't show default for keys)
+      if (row[1] === 'apiKey' && !pd.apiKey) return;
+      el.value = val;
+    });
+  }
+
+  fill('glm5',    [['glm5-key','apiKey'],['glm5-url','baseUrl'],['glm5-model','model']]);
+  fill('qwen',    [['qwen-key','apiKey'],['qwen-url','baseUrl'],['qwen-model','model']]);
+  fill('gemini',  [['gemini-key','apiKey'],['gemini-url','baseUrl'],['gemini-model','model']]);
+  fill('copilot', [['copilot-key','apiKey']]);
+  fill('custom',  [['custom-key','apiKey'],['custom-url','baseUrl'],['custom-model','model']]);
+
+  // Copilot model select
+  var cm = (p.copilot || {}).model;
+  if (cm) {
+    var sel = document.getElementById('copilot-model');
+    Array.from(sel.options).forEach(function(o) { o.selected = o.value === cm; });
+  }
+
+  // Activate saved provider
+  if (s.activeProvider) activate(s.activeProvider);
+  else updateBanner(null);
+});
+</script>
+{% endblock %}

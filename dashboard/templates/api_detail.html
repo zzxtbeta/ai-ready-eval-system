@@ -245,23 +245,12 @@ paths:
       把 API spec 转为 function calling 定义，给真实 LLM 一组业务任务（自动生成或用户指定），
       记录 agent 完整调用链，将每个失败步骤映射到 8 维度根因，生成可执行的改进路径。
     </div>
-    <div class="g2" style="max-width:480px;margin:0 auto 20px;text-align:left">
-      <div>
-        <label style="font-size:12px;color:var(--text-3);display:block;margin-bottom:5px">LLM API Key</label>
-        <input type="password" placeholder="sk-..." style="
-          width:100%;background:var(--bg-raised);border:1px solid var(--border);
-          color:var(--text);border-radius:6px;padding:8px 12px;
-          font-family:var(--mono);font-size:13px;outline:none;">
-      </div>
-      <div>
-        <label style="font-size:12px;color:var(--text-3);display:block;margin-bottom:5px">模型</label>
-        <select style="width:100%;background:var(--bg-raised);border:1px solid var(--border);
-          color:var(--text);border-radius:6px;padding:8px 12px;font-size:13px;outline:none;">
-          <option>Claude 3.5 Sonnet（推荐）</option>
-          <option>Claude 3.5 Haiku</option>
-          <option>GPT-4o</option>
-        </select>
-      </div>
+    <div id="api-l3-provider"
+      style="max-width:480px;margin:0 auto 16px;padding:10px 14px;
+             background:var(--bg-raised);border:1px solid var(--border);
+             border-radius:8px;font-size:13px;color:var(--text-2);
+             display:flex;align-items:center;gap:8px">
+      <i class="bi bi-hourglass"></i> 检测 LLM 配置中…
     </div>
     <button class="btn btn-primary" disabled style="opacity:.45;cursor:not-allowed">
       <i class="bi bi-robot"></i> 运行 Agent 实战测试（即将上线）
@@ -753,5 +742,35 @@ function resetAnalysis() {
   document.getElementById('file-summary').style.display = 'none';
   if (radarChart) { radarChart.destroy(); radarChart = null; }
 }
+
+// ── Provider status ──
+(function() {
+  const SK = 'eval_llm_settings';
+  const PROV_NAMES = {
+    glm5:    'GLM-5 (DashScope)',
+    qwen:    'Qwen / 通义千问',
+    gemini:  'Gemini (EulerAI)',
+    copilot: 'GitHub Copilot',
+    custom:  '自定义提供商'
+  };
+  var el = document.getElementById('api-l3-provider');
+  if (!el) return;
+  var s = {};
+  try { s = JSON.parse(localStorage.getItem(SK)) || {}; } catch(_) {}
+  var active = s.activeProvider;
+  var pdata = (s.providers || {})[active] || {};
+  if (active && pdata.apiKey) {
+    el.innerHTML = '<i class="bi bi-check-circle-fill" style="color:var(--pass)"></i>'
+      + ' <strong style="color:var(--text)">' + (PROV_NAMES[active] || active) + '</strong>'
+      + ' &nbsp;<span style="color:var(--text-3);font-size:12px">' + (pdata.model || '') + '</span>'
+      + ' &nbsp;<a href="/settings" class="btn btn-outline btn-sm" style="margin-left:auto">'
+      + '<i class="bi bi-gear"></i> 更换</a>';
+  } else {
+    el.innerHTML = '<i class="bi bi-exclamation-triangle-fill" style="color:var(--partial)"></i>'
+      + ' 未配置 LLM，Layer 3 需要先 '
+      + '<a href="/settings" style="color:var(--accent-h);text-decoration:underline">设置提供商</a>'
+      + ' 才能运行。';
+  }
+})();
 </script>
 {% endblock %}

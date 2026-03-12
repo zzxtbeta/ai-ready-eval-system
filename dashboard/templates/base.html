@@ -314,18 +314,14 @@
       <a href="{{ url_for('api_eval_detail') }}" class="sb-link highlight {% if request.endpoint == 'api_eval_detail' %}active{% endif %}">
         <i class="bi bi-plug-fill"></i> API 测试
       </a>
-      <a href="#" class="sb-link" style="opacity:.4;cursor:default" title="即将上线">
-        <i class="bi bi-layers-fill"></i> 联合测试
-        <span style="font-size:10px;color:var(--text-3);margin-left:auto">即将</span>
+      <div class="sb-section">工具</div>
+      <a href="{{ url_for('settings_page') }}" class="sb-link {% if request.endpoint == 'settings_page' %}active{% endif %}">
+        <i class="bi bi-gear-fill"></i> LLM 设置
       </a>
-      <div class="sb-section">其他</div>
       <a href="{{ url_for('trends') }}" class="sb-link {% if request.endpoint == 'trends' %}active{% endif %}">
         <i class="bi bi-graph-up"></i> 趋势
       </a>
-      <a href="/api/scores" class="sb-link" target="_blank">
-        <i class="bi bi-code-slash"></i> JSON API
-      </a>
-      <a href="https://github.com/zzxtbeta/ai-ready-eval-system" class="sb-link" target="_blank">
+      <a href="https://github.com/zzxtbeta/ai-ready-eval-system" class="sb-link" target="_blank" rel="noopener">
         <i class="bi bi-github"></i> GitHub
       </a>
     </div>
@@ -334,7 +330,12 @@
   <div class="main-content">
     <div class="topbar">
       <div class="topbar-title">{% block page_title %}概览{% endblock %}</div>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;align-items:center">
+        <a href="{{ url_for('settings_page') }}" class="btn btn-outline btn-sm"
+           title="LLM 设置" id="settings-btn"
+           style="{% if request.endpoint == 'settings_page' %}background:rgba(99,102,241,.12);color:var(--accent-h);border-color:rgba(99,102,241,.3);{% endif %}">
+          <i class="bi bi-gear-fill"></i> 设置
+        </a>
         <a href="{{ url_for('skill_eval_detail') }}" class="btn btn-outline btn-sm">
           <i class="bi bi-lightning-fill"></i> Skill
         </a>
