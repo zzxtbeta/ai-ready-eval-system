@@ -772,14 +772,21 @@ function resetEval() {
     var s = {};
     try { s = JSON.parse(localStorage.getItem(SK)) || {}; } catch(_) {}
     var active = s.activeProvider;
-    var pdata = (s.providers || {})[active] || {};
-    var hasKey = active && pdata.apiKey;
+    var pdata  = (s.providers || {})[active] || {};
+    var hasKey = !!(active && pdata.apiKey);
     if (hasKey) {
       el.innerHTML = '<i class="bi bi-check-circle-fill" style="color:var(--pass)"></i>'
         + ' <strong style="color:var(--text)">' + (PROV_NAMES[active] || active) + '</strong>'
         + ' &nbsp;<span style="color:var(--text-3);font-size:12px">' + (pdata.model || '') + '</span>'
         + ' &nbsp;<a href="/settings" class="btn btn-outline btn-sm" style="margin-left:auto">'
         + '<i class="bi bi-gear"></i> 更换</a>';
+    } else if (active) {
+      // Provider is selected but API key is missing
+      el.innerHTML = '<i class="bi bi-exclamation-triangle-fill" style="color:var(--partial)"></i>'
+        + ' <strong style="color:var(--text)">' + (PROV_NAMES[active] || active) + '</strong>'
+        + ' <span style="color:var(--partial);font-size:12px;margin-left:4px">已选择，但 API Key 未填写</span>'
+        + ' &nbsp;<a href="/settings" style="color:var(--accent-h);text-decoration:underline;margin-left:auto">'
+        + '前往设置填写 Key</a>';
     } else {
       el.innerHTML = '<i class="bi bi-exclamation-triangle-fill" style="color:var(--partial)"></i>'
         + ' 未配置 LLM，Layer 2 / 3 需要先 '
@@ -788,12 +795,11 @@ function resetEval() {
     }
   }
   renderProvider('skill-l2-provider');
-  // 如果已配置 LLM，启用 Layer 2 按钮
+  // Enable Layer 2 button whenever an active provider is set (key validation happens at call time with clear error)
   var _s2 = {};
   try { _s2 = JSON.parse(localStorage.getItem('eval_llm_settings')) || {}; } catch(_) {}
   var _a2 = _s2.activeProvider;
-  var _p2 = (_s2.providers || {})[_a2] || {};
-  if (_a2 && _p2.apiKey) {
+  if (_a2) {
     var _btn2 = document.getElementById('l2-run-btn');
     if (_btn2) _btn2.disabled = false;
   }

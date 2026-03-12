@@ -119,9 +119,9 @@
           <button class="eye-btn" onclick="toggleKey('glm5-key',this)"><i class="bi bi-eye"></i></button>
         </div>
       </div>
-      <div class="field-row">
-        <label>Base URL</label>
-        <input type="text" id="glm5-url" value="https://coding.dashscope.aliyuncs.com/v1">
+      <div id="key-warn-glm5" style="display:none;color:var(--fail);font-size:12px;padding:4px 0 2px;">
+        <i class="bi bi-exclamation-triangle-fill"></i> API Key 未填写，请在上方输入 Key 后再次点击「激活并使用」
+      </div> value="https://coding.dashscope.aliyuncs.com/v1">
       </div>
       <div class="field-row">
         <label>模型</label>
@@ -148,9 +148,9 @@
           <button class="eye-btn" onclick="toggleKey('qwen-key',this)"><i class="bi bi-eye"></i></button>
         </div>
       </div>
-      <div class="field-row">
-        <label>Base URL</label>
-        <input type="text" id="qwen-url" value="https://dashscope.aliyuncs.com/compatible-mode/v1">
+      <div id="key-warn-qwen" style="display:none;color:var(--fail);font-size:12px;padding:4px 0 2px;">
+        <i class="bi bi-exclamation-triangle-fill"></i> API Key 未填写，请在上方输入 Key 后再次点击「激活并使用」
+      </div> value="https://dashscope.aliyuncs.com/compatible-mode/v1">
       </div>
       <div class="field-row">
         <label>模型</label>
@@ -177,9 +177,9 @@
           <button class="eye-btn" onclick="toggleKey('gemini-key',this)"><i class="bi bi-eye"></i></button>
         </div>
       </div>
-      <div class="field-row">
-        <label>Base URL</label>
-        <input type="text" id="gemini-url" value="https://llm.eulerai.au">
+      <div id="key-warn-gemini" style="display:none;color:var(--fail);font-size:12px;padding:4px 0 2px;">
+        <i class="bi bi-exclamation-triangle-fill"></i> API Key 未填写，请在上方输入 Key 后再次点击「激活并使用」
+      </div> value="https://llm.eulerai.au">
       </div>
       <div class="field-row">
         <label>模型</label>
@@ -212,9 +212,9 @@
           <button class="eye-btn" onclick="toggleKey('copilot-key',this)"><i class="bi bi-eye"></i></button>
         </div>
       </div>
-      <div class="field-row">
-        <label>模型</label>
-        <select id="copilot-model" style="width:100%;background:var(--bg-raised);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:12px;outline:none;font-family:var(--mono)">
+      <div id="key-warn-copilot" style="display:none;color:var(--fail);font-size:12px;padding:4px 0 2px;">
+        <i class="bi bi-exclamation-triangle-fill"></i> GitHub PAT 未填写，请在上方输入令牌后再次点击「激活并使用」
+      </div> style="width:100%;background:var(--bg-raised);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:12px;outline:none;font-family:var(--mono)">
           <option value="gpt-4.1">gpt-4.1（推荐）</option>
           <option value="gpt-4o">gpt-4o</option>
           <option value="claude-3.7-sonnet">claude-3.7-sonnet</option>
@@ -248,8 +248,9 @@
           <button class="eye-btn" onclick="toggleKey('custom-key',this)"><i class="bi bi-eye"></i></button>
         </div>
       </div>
-      <div class="field-row">
-        <label>Base URL</label>
+      <div id="key-warn-custom" style="display:none;color:var(--fail);font-size:12px;padding:4px 0 2px;">
+        <i class="bi bi-exclamation-triangle-fill"></i> API Key 未填写，请在上方输入 Key 后再次点击「激活并使用」
+      </div>
         <input type="text" id="custom-url" placeholder="https://api.example.com/v1">
       </div>
       <div class="field-row">
@@ -326,10 +327,19 @@ function saveAll() {
     }
   };
   localStorage.setItem(SK, JSON.stringify(data));
+
+  // Show inline warning on active card if key is empty
+  PROVIDERS.forEach(function(p) {
+    var warnEl = document.getElementById('key-warn-' + p);
+    if (!warnEl) return;
+    var hasKey = !!(data.providers[p] && data.providers[p].apiKey);
+    warnEl.style.display = (p === active && !hasKey) ? '' : 'none';
+  });
+
   var st = document.getElementById('save-status');
   st.style.display = 'inline-flex';
   setTimeout(function() { st.style.display = 'none'; }, 2500);
-  updateBanner(active);
+  updateBanner(active, data);
 }
 
 function activate(provider) {
@@ -344,13 +354,19 @@ function activate(provider) {
   updateBanner(provider);
 }
 
-function updateBanner(active) {
+function updateBanner(active, data) {
+  if (!data) { try { data = JSON.parse(localStorage.getItem(SK)) || {}; } catch(_) { data = {}; } }
   var el = document.getElementById('active-banner');
   if (active && PROV_NAMES[active]) {
-    el.innerHTML = '<i class="bi bi-check-circle-fill" style="color:var(--pass);margin-right:6px"></i>'
-      + '<span style="color:var(--text)">' + PROV_NAMES[active] + '</span>';
+    var pdata  = (data.providers || {})[active] || {};
+    var hasKey = !!(pdata.apiKey);
+    el.innerHTML = '<i class="bi bi-' + (hasKey ? 'check-circle-fill" style="color:var(--pass)' : 'exclamation-triangle-fill" style="color:var(--partial)') + ';margin-right:6px"></i>'
+      + '<span style="color:var(--text)">' + PROV_NAMES[active] + '</span>'
+      + (hasKey
+          ? ' <span style="color:var(--text-3);font-size:12px;margin-left:6px">' + (pdata.model || '') + '</span>'
+          : ' <span style="color:var(--fail);font-size:12px;margin-left:6px">&#9650; API Key 未填写 — LLM 调用将失败，请在下方填入 Key 后再次点击「激活并使用」</span>');
   } else {
-    el.innerHTML = '<span style="color:var(--text-3)">未配置 — 请点击提供商卡片中的「激活」按钮</span>';
+    el.innerHTML = '<span style="color:var(--text-3)">未配置 — 请点击提供商卡片中的「激活并使用」按钮</span>';
   }
 }
 
@@ -398,9 +414,16 @@ window.addEventListener('DOMContentLoaded', function() {
     Array.from(sel.options).forEach(function(o) { o.selected = o.value === cm; });
   }
 
-  // Activate saved provider
-  if (s.activeProvider) activate(s.activeProvider);
-  else updateBanner(null);
+  // Activate saved provider and show any key-warnings from prior save
+  if (s.activeProvider) {
+    activate(s.activeProvider);
+    // Show inline warning if active provider has no key
+    var activeKey = (p[s.activeProvider] || {}).apiKey;
+    var warnEl = document.getElementById('key-warn-' + s.activeProvider);
+    if (warnEl && !activeKey) warnEl.style.display = '';
+  } else {
+    updateBanner(null);
+  }
 });
 </script>
 {% endblock %}
