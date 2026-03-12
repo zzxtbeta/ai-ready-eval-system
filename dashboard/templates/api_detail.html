@@ -62,7 +62,7 @@
         <i class="bi bi-link-45deg"></i> MCP 地址 <span style="font-size:10px;margin-left:4px">即将</span>
       </button>
       <button class="mode-tab" data-mode="url" onclick="switchMode('url')">
-        <i class="bi bi-globe"></i> 文档 URL
+        <i class="bi bi-magic"></i> 自动检测
       </button>
     </div>
 
@@ -92,52 +92,22 @@ paths:
       "></textarea>
     </div>
 
-    <!-- URL mode -->
+    <!-- URL / 自动检测模式 -->
     <div id="panel-url" style="display:none">
-      <div style="margin-bottom:10px">
-        <label style="font-size:12px;color:var(--text-3);display:block;margin-bottom:5px">
-          OpenAPI Spec 文件 URL
-        </label>
-        <div style="display:flex;gap:8px">
-          <input type="url" id="spec-url" placeholder="https://api.example.com/openapi.json"
-            style="flex:1;background:var(--bg-raised);border:1px solid var(--border);
-            color:var(--text);border-radius:6px;padding:8px 12px;font-size:13px;outline:none"
-            onkeydown="if(event.key==='Enter') fetchSpecFromUrl()">
-          <button class="btn btn-outline" onclick="fetchSpecFromUrl()">
-            <i class="bi bi-cloud-download"></i> 获取
-          </button>
-        </div>
+      <div style="font-size:13px;color:var(--text-2);margin-bottom:12px;line-height:1.7">
+        <i class="bi bi-magic" style="color:var(--accent-h)"></i>
+        粘贴 API 服务地址，自动探测 Swagger / OpenAPI 规范文件，无需知道具体路径。
       </div>
-      <div id="url-status" style="display:none;font-size:12px;padding:8px 12px;border-radius:6px;margin-bottom:8px"></div>
-      <!-- Swagger 指引 -->
-      <details style="margin-top:6px">
-        <summary style="cursor:pointer;font-size:13px;color:var(--accent-h);padding:8px 0;user-select:none;list-style:none;display:flex;align-items:center;gap:6px">
-          <i class="bi bi-question-circle"></i> 如何从 Swagger UI 获取规范文件 URL？
-        </summary>
-        <div style="font-size:12px;color:var(--text-2);line-height:1.9;padding:12px 14px;
-          background:var(--bg-raised);border:1px solid var(--border-soft);border-radius:8px;margin-top:6px">
-          <div style="margin-bottom:8px;font-weight:600;color:var(--text)">3 种方法</div>
-          <div><span style="color:var(--pass);font-weight:600">① 直接试 URL：</span>
-            在服务根地址后拼接以下路径之一（哪个能打开就用哪个）：</div>
-          <div style="font-family:var(--mono);background:var(--bg);padding:6px 10px;border-radius:4px;margin:4px 0 10px;font-size:11px;line-height:2">
-            /openapi.json &nbsp;&nbsp; /openapi.yaml<br>
-            /swagger.json &nbsp;&nbsp; /api-docs<br>
-            /v2/api-docs &nbsp;&nbsp;&nbsp; /v3/api-docs
-          </div>
-          <div><span style="color:var(--pass);font-weight:600">② 看 Swagger UI 页面顶部：</span>
-            大多数 Swagger UI 在输入框里显示 spec URL（如
-            <code style="font-size:11px">/v2/api-docs</code>），把它和域名拼起来即可。</div>
-          <div style="margin-top:8px"><span style="color:var(--pass);font-weight:600">③ 浏览器开发工具：</span>
-            打开 Swagger UI 页面 → F12 → Network → 过滤 <code style="font-size:11px">json</code>
-            → 刷新页面 → 找到返回 OpenAPI 结构的请求，复制 URL。</div>
-          <div style="margin-top:10px;padding:8px 10px;background:rgba(99,102,241,.08);border-radius:6px;color:var(--text-2)">
-            <i class="bi bi-info-circle" style="color:var(--accent-h)"></i>
-            <strong>关于导出单个接口：</strong>Swagger UI 不支持直接导出单个端点。我们的工具会分析
-            整份 spec 并逐端点展示评分，建议上传完整 spec；如只想测某一个，可手动创建只含该
-            <code style="font-size:11px">paths</code> 条目的最小 spec 文件。
-          </div>
-        </div>
-      </details>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <input id="spec-url" placeholder="http://localhost:8080  或  https://api.example.com"
+          style="flex:1;background:var(--bg-raised);border:1px solid var(--border);
+          color:var(--text);border-radius:6px;padding:8px 12px;font-size:13px;outline:none"
+          onkeydown="if(event.key==='Enter') fetchSpecFromUrl()">
+        <button class="btn btn-primary" onclick="fetchSpecFromUrl()" id="url-detect-btn">
+          <i class="bi bi-search"></i> 自动检测
+        </button>
+      </div>
+      <div id="url-status" style="display:none;font-size:12px;padding:10px 14px;border-radius:8px;line-height:1.6"></div>
     </div>
 
     <!-- File summary -->
@@ -322,38 +292,101 @@ function switchMode(mode) {
     document.getElementById('panel-' + m).style.display = m === mode ? '' : 'none');
 }
 
-// ── URL mode: fetch spec via server proxy ──
+// ── URL / 自动检测模式 ──
+var SPEC_PROBE_PATHS = [
+  '/v3/api-docs', '/v2/api-docs',
+  '/openapi.json', '/openapi.yaml',
+  '/v3/api-docs.yaml', '/v2/api-docs.yaml',
+  '/swagger.json', '/api-docs'
+];
+
+async function _tryFetch(url) {
+  var resp = await fetch('/api/fetch-spec?url=' + encodeURIComponent(url));
+  var data = await resp.json();
+  if (!resp.ok || data.error) return null;
+  var c = data.content || '';
+  // 校验是否包含 OpenAPI / Swagger 特征字段
+  if (!c.includes('"openapi"') && !c.includes('"swagger"')
+      && !c.includes('openapi:')  && !c.includes('swagger:')) return null;
+  return data;
+}
+
 async function fetchSpecFromUrl() {
   var urlEl    = document.getElementById('spec-url');
   var statusEl = document.getElementById('url-status');
-  var rawUrl   = (urlEl.value || '').trim();
-  if (!rawUrl) { urlEl.focus(); return; }
+  var btnEl    = document.getElementById('url-detect-btn');
+  var raw      = (urlEl.value || '').trim();
+  if (!raw) { urlEl.focus(); return; }
 
+  // 补协议（如用户只写了 localhost:8080）
+  if (!/^https?:\/\//i.test(raw)) raw = 'http://' + raw;
+  // 剥离已知 spec 路径，只保留 base
+  var base = raw
+    .replace(/\/(v[23]\/api-docs(\.yaml)?|openapi\.(json|yaml)|swagger\.json|api-docs)(\?.*)?$/i, '')
+    .replace(/\/$/, '');
+
+  btnEl.disabled = true;
+  btnEl.innerHTML = '<i class="bi bi-hourglass-split"></i> 检测中…';
   statusEl.style.display = '';
-  statusEl.style.background = 'var(--bg-raised)';
-  statusEl.style.color = 'var(--text-2)';
-  statusEl.innerHTML = '<i class="bi bi-hourglass-split"></i> 正在获取…';
 
-  try {
-    var resp = await fetch('/api/fetch-spec?url=' + encodeURIComponent(rawUrl));
-    var data = await resp.json();
-    if (!resp.ok || data.error) throw new Error(data.error || '获取失败');
-
-    specText = data.content;
-    document.getElementById('file-summary').style.display = '';
-    document.getElementById('file-summary').innerHTML =
-      '<i class="bi bi-check2-circle" style="color:var(--pass);margin-right:6px"></i>'
-      + '已载入：<strong>' + rawUrl.split('/').pop() + '</strong>'
-      + ' (' + (specText.length / 1024).toFixed(1) + ' KB)';
-    document.getElementById('start-btn').disabled = false;
-    statusEl.style.background = 'rgba(34,197,94,.08)';
-    statusEl.style.color = 'var(--pass)';
-    statusEl.innerHTML = '<i class="bi bi-check-circle-fill"></i> 获取成功，可点击「开始静态分析」';
-  } catch(err) {
-    statusEl.style.background = 'rgba(239,68,68,.08)';
-    statusEl.style.color = 'var(--fail)';
-    statusEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ' + err.message;
+  function setStatus(bg, color, html) {
+    statusEl.style.background = bg;
+    statusEl.style.color = color;
+    statusEl.innerHTML = html;
   }
+
+  // 如果用户粘贴的本身就是完整 spec URL，先直接尝试
+  var directData = null;
+  if (raw !== base) {
+    setStatus('var(--bg-raised)', 'var(--text-2)',
+      '<i class="bi bi-hourglass-split"></i> 正在直接请求输入的地址…');
+    directData = await _tryFetch(raw).catch(() => null);
+  }
+
+  if (directData) {
+    _onSpecLoaded(directData.content, raw, statusEl);
+  } else {
+    // 依次探测 8 条常见路径
+    var found = false;
+    for (var i = 0; i < SPEC_PROBE_PATHS.length; i++) {
+      var tryUrl = base + SPEC_PROBE_PATHS[i];
+      setStatus('var(--bg-raised)', 'var(--text-2)',
+        '<i class="bi bi-hourglass-split"></i> 自动探测中 '
+        + '<span style="font-family:var(--mono);color:var(--accent-h)">' + SPEC_PROBE_PATHS[i] + '</span>'
+        + ' <span style="color:var(--text-3)">(' + (i + 1) + ' / ' + SPEC_PROBE_PATHS.length + ')</span>');
+      var data = await _tryFetch(tryUrl).catch(() => null);
+      if (data) {
+        _onSpecLoaded(data.content, tryUrl, statusEl);
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      setStatus('rgba(239,68,68,.08)', 'var(--fail)',
+        '<i class="bi bi-exclamation-triangle-fill"></i>'
+        + ' 8 条常见路径均未找到规范文件。请确认服务地址可访问，或切换「上传 Spec」手动上传文件。');
+    }
+  }
+
+  btnEl.disabled = false;
+  btnEl.innerHTML = '<i class="bi bi-search"></i> 重新检测';
+}
+
+function _onSpecLoaded(content, foundUrl, statusEl) {
+  specText = content;
+  var path = foundUrl.replace(/^https?:\/\/[^/]+/, '') || foundUrl;
+  var fmt  = foundUrl.includes('.yaml') ? 'YAML' : 'JSON';
+  document.getElementById('file-summary').style.display = '';
+  document.getElementById('file-summary').innerHTML =
+    '<i class="bi bi-check2-circle" style="color:var(--pass);margin-right:6px"></i>'
+    + '已自动载入：<strong>' + path + '</strong>'
+    + ' <span style="color:var(--text-3)">(' + fmt + ' · ' + (content.length / 1024).toFixed(1) + ' KB)</span>';
+  document.getElementById('start-btn').disabled = false;
+  statusEl.style.background = 'rgba(34,197,94,.08)';
+  statusEl.style.color = 'var(--pass)';
+  statusEl.innerHTML = '<i class="bi bi-check-circle-fill"></i>'
+    + ' 找到规范：<span style="font-family:var(--mono)">' + path + '</span>'
+    + '，点击<strong>开始静态分析</strong>。';
 }
 
 // ── File handling ──
